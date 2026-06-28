@@ -1,0 +1,13 @@
+# Data caches (regenerate via scripts/build_panel.py)
+data/cache/*.parquet
+data/raw/
+# Internal reference docs — grounding only, not for distribution
+docs/references/*.pdf
+reports/*.pdf
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+.DS_Store
