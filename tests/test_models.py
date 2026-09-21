@@ -57,8 +57,10 @@ def test_gmv_matches_closed_form_on_diagonal_dominant_sigma():
     assert (closed > 0).all()  # confirms Sigma's unconstrained GMV is all-positive
 
     numeric = pd.Series(_min_variance_long_only(Sigma), index=UNIVERSE)
-    # SLSQP's finite-difference gradient (no analytic jac supplied in
-    # production code) caps achievable precision here at ~5e-6, not 1e-6.
+    # SLSQP's stopping criterion here is the relative objective-value
+    # decrease (ftol=1e-12), not gradient noise — the analytic jacobian
+    # barely moves this number (~4.51e-6 either way) — so achievable
+    # precision on x is ~5e-6, not 1e-6.
     assert np.allclose(numeric.to_numpy(), closed.to_numpy(), atol=1e-5, rtol=0)
 
 

@@ -100,10 +100,11 @@ def _min_variance_long_only(Sigma: pd.DataFrame) -> np.ndarray:
     n = Sigma.shape[0]
     Sigma_np = Sigma.to_numpy()
     x0 = np.full(n, 1.0 / n)
-    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0}]
+    ones = np.ones(n)
+    cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0, "jac": lambda w: ones}]
     bounds = [(0.0, 1.0)] * n
     res = opt.minimize(
-        lambda w: w @ Sigma_np @ w, x0, method="SLSQP",
+        lambda w: w @ Sigma_np @ w, x0, jac=lambda w: 2 * Sigma_np @ w, method="SLSQP",
         bounds=bounds, constraints=cons,
         options={"ftol": 1e-12, "maxiter": 1000},
     )
@@ -170,10 +171,10 @@ class MaxSharpe(Strategy):
         y0 = np.zeros(n)
         y0[i0] = 1.0 / excess_np[i0]
 
-        cons = [{"type": "eq", "fun": lambda y: excess_np @ y - 1.0}]
+        cons = [{"type": "eq", "fun": lambda y: excess_np @ y - 1.0, "jac": lambda y: excess_np}]
         bounds = [(0.0, None)] * n
         res = opt.minimize(
-            lambda y: y @ Sigma_np @ y, y0, method="SLSQP",
+            lambda y: y @ Sigma_np @ y, y0, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
             bounds=bounds, constraints=cons,
             options={"ftol": 1e-12, "maxiter": 1000},
         )
@@ -192,7 +193,7 @@ class MaxSharpe(Strategy):
             pos = np.clip(excess_np, 0.0, None)
             y0_retry = pos / (excess_np @ pos)
             res = opt.minimize(
-                lambda y: y @ Sigma_np @ y, y0_retry, method="SLSQP",
+                lambda y: y @ Sigma_np @ y, y0_retry, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
                 bounds=bounds, constraints=cons,
                 options={"ftol": 1e-12, "maxiter": 1000},
             )
