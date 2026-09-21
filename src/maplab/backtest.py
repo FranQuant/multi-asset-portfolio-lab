@@ -79,6 +79,7 @@ def backtest(
 
     weights_log: dict[pd.Timestamp, pd.Series] = {}
     turnover_log: dict[pd.Timestamp, float] = {}
+    charge_log: dict[pd.Timestamp, pd.Timestamp] = {}
 
     actual_w = pd.Series(0.0, index=cols)   # drifted, realized weights held now
 
@@ -89,12 +90,20 @@ def backtest(
         # one-way turnover = 0.5 * sum|target - drifted actual|
         one_way = 0.5 * (target - actual_w).abs().sum()
         turnover_log[asof] = float(one_way)
-        if asof in cost_daily.index:
-            cost_daily.loc[asof] += one_way * cost_bps / 1e4
 
         # segment until next rebalance (exclusive) or end of sample
         seg_end = rdates[k + 1] if k + 1 < len(rdates) else rets.index[-1] + pd.Timedelta(days=1)
         seg = rets.loc[(rets.index >= asof) & (rets.index < seg_end)]
+        if seg.empty:
+            raise ValueError(f"Empty segment for rebalance at {asof}")
+
+        # rebalance_dates returns calendar month-end labels (~30% weekends/
+        # holidays); keying the cost on `asof` silently skipped those costs.
+        # Charge the trade cost on the first actual trading day of the
+        # segment instead; for trading-day asof, seg.index[0] == asof so
+        # nothing changes there.
+        cost_daily.loc[seg.index[0]] += one_way * cost_bps / 1e4
+        charge_log[asof] = seg.index[0]
 
         # let weights drift across the segment; portfolio return each day is
         # the dot of CURRENT (drifted) weights with that day's asset returns
@@ -107,6 +116,14 @@ def backtest(
             if tot != 0:
                 w = w / tot
         actual_w = w  # carry drifted weights into the next rebalance's cost calc
+
+    unbooked = [asof for asof, tw in turnover_log.items() if tw > 0 and asof not in charge_log]
+    expected_total_cost = sum(turnover_log.values()) * cost_bps / 1e4
+    if unbooked or not np.isclose(cost_daily.sum(), expected_total_cost, rtol=0, atol=1e-12):
+        raise RuntimeError(
+            f"Cost booking mismatch: cost_daily.sum()={cost_daily.sum()!r}, "
+            f"expected={expected_total_cost!r}, unbooked_rebalances={unbooked!r}"
+        )
 
     net = (port_ret - cost_daily).loc[scoring_start:]
     wlog = pd.DataFrame(weights_log).T
