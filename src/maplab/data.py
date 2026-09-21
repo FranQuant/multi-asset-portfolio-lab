@@ -27,11 +27,11 @@ def find_repo_root(start: Path | None = None) -> Path:
 def load_prices(path: Path | None = None) -> pd.DataFrame:
     """Load the cached wide price panel (index=Date, columns=tickers).
 
-    Looks for data/cache/prices_29.parquet. If absent, raises with a clear
+    Looks for data/cache/prices.parquet. If absent, raises with a clear
     pointer to scripts/build_panel.py (or the synthetic fallback in nb 00).
     """
     root = find_repo_root()
-    path = path or root / "data" / "cache" / "prices_29.parquet"
+    path = path or root / "data" / "cache" / "prices.parquet"
     if not path.exists():
         raise FileNotFoundError(
             f"{path} not found. Run scripts/build_panel.py to ingest real data, "

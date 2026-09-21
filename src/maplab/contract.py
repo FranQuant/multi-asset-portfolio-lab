@@ -6,11 +6,11 @@ everywhere — that is the point.
 """
 from __future__ import annotations
 
-# ── Universe: 29 instruments across 6 asset groups ──────────────────────────
+# ── Universe: 26 instruments across 6 asset groups ──────────────────────────
 # Grouping is explicit so models can declare which sub-universe they are valid
 # on (e.g. equity-factor models should not allocate over commodities/FX).
 ASSET_GROUPS: dict[str, list[str]] = {
-    "us_single_stock": ["AAPL", "MSFT", "GOOGL", "NVDA", "JPM", "JNJ", "XOM", "WMT"],
+    "us_single_stock": ["AAPL", "MSFT", "GOOGL", "NVDA", "JPM"],
     "us_sector_etf":   ["XLK", "XLF", "XLE", "XLV", "XLP", "XLU"],
     "us_broad_equity": ["SPY", "IWM"],
     "intl_equity":     ["EFA", "EEM", "FXI"],
@@ -31,7 +31,7 @@ EQUITY_SLEEVE: list[str] = (
 )
 
 # ── Time & rebalancing conventions ──────────────────────────────────────────
-START = "2003-01-01"
+START = "2008-01-01"
 END   = "2026-04-30"
 TRAIN_TEST_SPLIT = "2022-12-31"   # single split; 2023+ is the held-out window
 
@@ -73,6 +73,9 @@ WARMUP_DAYS = COV_LOOKBACK
 # Instruments must be present for the FULL window. BTC-USD is deliberately
 # excluded: it does not exist back to 2003, so including it would inject a
 # survivorship/availability bias into every cross-sectional comparison.
+# JNJ, XOM, and WMT were dropped from us_single_stock: they are not present in
+# the EODHD data archive backing this repo. Their sectors remain represented
+# via the sector ETFs (XLV, XLE, XLP).
 EXCLUDED_FOR_CONTINUITY: list[str] = ["BTC-USD"]
 
 GROUP_OF: dict[str, str] = {
