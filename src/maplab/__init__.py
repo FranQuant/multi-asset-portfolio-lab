@@ -1,8 +1,10 @@
 """maplab — multi-asset portfolio lab shared harness.
 
 Public API kept small on purpose: the data contract, the Panel gatekeeper,
-covariance estimators, metrics, and the one backtest loop. Model logic lives
-in the notebooks for teaching transparency.
+covariance estimators, metrics, and the one backtest loop. Model classes
+(GMV, MaxSharpe, EqualWeight, ...) live in `models.py` so every notebook that
+uses a given strategy name means exactly the same thing; notebooks are the
+teaching layer that instantiates them and narrates the results.
 """
 from . import contract
 from .contract import (
@@ -17,6 +19,7 @@ from .metrics import (
     ann_turnover, summary,
 )
 from .backtest import backtest, rebalance_dates, first_eligible_rebalance
+from .models import Strategy, GMV, MaxSharpe, EqualWeight, gmv_closed_form, tangency_closed_form
 from .plotting import apply_style, FAMILY_COLORS
 
 __all__ = [
@@ -28,5 +31,7 @@ __all__ = [
     "ann_return", "ann_vol", "ann_sharpe", "max_drawdown", "calmar",
     "hit_rate", "ann_turnover", "summary",
     "backtest", "rebalance_dates", "first_eligible_rebalance",
+    "Strategy", "GMV", "MaxSharpe", "EqualWeight",
+    "gmv_closed_form", "tangency_closed_form",
     "apply_style", "FAMILY_COLORS",
 ]
