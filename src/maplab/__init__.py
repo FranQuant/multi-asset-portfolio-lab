@@ -26,6 +26,7 @@ from .models import (
     Strategy, GMV, MaxSharpe, BetaTargetMinVar, BlackLitterman, EqualWeight,
     gmv_closed_form, tangency_closed_form,
 )
+from .models import MostDiversified, mdp_closed_form
 from .plotting import apply_style, FAMILY_COLORS
 
 __all__ = [
@@ -41,4 +42,5 @@ __all__ = [
     "Strategy", "GMV", "MaxSharpe", "BetaTargetMinVar", "BlackLitterman", "EqualWeight",
     "gmv_closed_form", "tangency_closed_form",
     "apply_style", "FAMILY_COLORS",
+    "MostDiversified", "mdp_closed_form",
 ]

@@ -165,6 +165,18 @@ def _tangency_long_only(excess: np.ndarray, Sigma_np: np.ndarray,
     return w, retried
 
 
+def _mdp_long_only(Sigma: pd.DataFrame, label: str, asof, on_retry=None) -> tuple[np.ndarray, bool]:
+    """Long-only max diversification ratio DR(w) = w'σ/√(w'Σw) s.t. 1'w=1,
+    w>=0, solved exactly as the tangency QP with excess := σ (σ>0, so never
+    degenerate). Identity: risk weights x = w∘σ/(w'σ) equal the long-only
+    GMV on the correlation matrix C = D⁻¹ΣD⁻¹. Special cases: constant
+    correlation ⇒ inverse vol; equal vols ⇒ GMV. Mechanism only — no
+    empirical claims.
+    """
+    sigma = np.sqrt(np.diag(Sigma.to_numpy()))
+    return _tangency_long_only(sigma, Sigma.to_numpy(), label, asof, on_retry=on_retry)
+
+
 class GMV(Strategy):
     """Long-only global minimum-variance portfolio."""
 
@@ -514,6 +526,26 @@ class BlackLitterman(Strategy):
         return pd.Series(w, index=Sigma.columns)
 
 
+class MostDiversified(Strategy):
+    """Long-only maximum diversification ratio (MDP) portfolio."""
+
+    name = "MDP"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def __init__(self, cov_estimator=sample_cov, lookback: int = COV_LOOKBACK):
+        super().__init__(cov_estimator=cov_estimator, lookback=lookback)
+        self.retry_dates: list[pd.Timestamp] = []
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        w, _ = _mdp_long_only(
+            Sigma, self.label, asof,
+            on_retry=lambda: self.retry_dates.append(asof),
+        )
+        return pd.Series(w, index=Sigma.columns)
+
+
 class EqualWeight(Strategy):
     """1/N over the universe. No estimation, no lookback dependency."""
 
@@ -551,4 +583,16 @@ def tangency_closed_form(mu: pd.Series, Sigma: pd.DataFrame, rf: float) -> pd.Se
     if denom <= 0:
         raise ValueError(f"tangency_closed_form: denominator 1'Σ⁻¹(μ−rf) = {denom!r} <= 0")
     w = Sigma_inv_excess / denom
+    return pd.Series(w, index=Sigma.columns)
+
+
+def mdp_closed_form(Sigma: pd.DataFrame) -> pd.Series:
+    """Unconstrained max diversification ratio weights: Σ⁻¹σ / 1'Σ⁻¹σ
+    (may short)."""
+    sigma = np.sqrt(np.diag(Sigma.to_numpy()))
+    Sigma_inv_sigma = np.linalg.solve(Sigma.to_numpy(), sigma)
+    denom = np.ones(len(sigma)) @ Sigma_inv_sigma
+    if denom <= 0:
+        raise ValueError(f"mdp_closed_form: denominator 1'Σ⁻¹σ = {denom!r} <= 0")
+    w = Sigma_inv_sigma / denom
     return pd.Series(w, index=Sigma.columns)

@@ -17,10 +17,13 @@ from maplab.models import (
     MaxSharpe,
     BetaTargetMinVar,
     BlackLitterman,
+    MostDiversified,
     EqualWeight,
     gmv_closed_form,
     tangency_closed_form,
+    mdp_closed_form,
     _min_variance_long_only,
+    _mdp_long_only,
 )
 
 
@@ -550,3 +553,120 @@ def test_black_litterman_raises_on_invalid_mom_skip():
 
 def test_black_litterman_label():
     assert BlackLitterman().label == "BL(k=0.1)(sample)"
+
+
+# ── k. MostDiversified ────────────────────────────────────────────────────
+
+def test_mdp_weights_valid():
+    panel, log_returns = make_panel()
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = MostDiversified()
+    w = strat(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert np.isclose(w.sum(), 1.0)
+    assert (w >= -1e-12).all()
+    assert strat.retry_dates == []
+
+
+def test_mdp_maximizes_dr():
+    panel, log_returns = make_panel()
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+    sigma_np = np.sqrt(np.diag(Sigma_np))
+
+    def dr(w: pd.Series) -> float:
+        w_np = w.reindex(UNIVERSE).to_numpy()
+        return float(w_np @ sigma_np) / np.sqrt(float(w_np @ Sigma_np @ w_np))
+
+    dr_mdp = dr(MostDiversified()(panel, asof))
+    dr_ew = dr(EqualWeight()(panel, asof))
+    dr_gmv = dr(GMV()(panel, asof))
+
+    rng = np.random.default_rng(0)
+    draws = rng.dirichlet(np.full(N_ASSETS, 1.0), size=5000)
+    dr_draws = (draws @ sigma_np) / np.sqrt(np.einsum("ij,jk,ik->i", draws, Sigma_np, draws))
+    best_baseline = max(dr_ew, dr_gmv, float(np.max(dr_draws)))
+
+    assert dr_mdp >= best_baseline - 1e-10
+
+
+def test_mdp_constant_correlation_is_inverse_vol():
+    rng = np.random.default_rng(30)
+    vols = rng.uniform(0.05, 0.30, size=N_ASSETS)
+    rho = 0.3
+    C = np.full((N_ASSETS, N_ASSETS), rho)
+    np.fill_diagonal(C, 1.0)
+    D = np.diag(vols)
+    Sigma = pd.DataFrame(D @ C @ D, index=UNIVERSE, columns=UNIVERSE)
+
+    w, retried = _mdp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"))
+    expected = (1.0 / vols) / np.sum(1.0 / vols)
+    assert np.allclose(w, expected, atol=1e-5, rtol=0)
+    assert not retried
+
+    w_closed = mdp_closed_form(Sigma)
+    assert np.allclose(w_closed.to_numpy(), expected, atol=1e-10, rtol=0)
+
+
+def test_mdp_equal_vols_is_gmv():
+    rng = np.random.default_rng(31)
+    L = rng.normal(size=(N_ASSETS, 3))
+    raw = L @ L.T + np.eye(N_ASSETS) * 5.0
+    d = np.sqrt(np.diag(raw))
+    C = raw / np.outer(d, d)
+
+    vol = 0.1
+    Sigma = pd.DataFrame((vol ** 2) * C, index=UNIVERSE, columns=UNIVERSE)
+
+    w_mdp, retried = _mdp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"))
+    w_gmv = _min_variance_long_only(Sigma)
+    assert np.allclose(w_mdp, w_gmv, atol=1e-5, rtol=0)
+    assert not retried
+
+
+def test_mdp_risk_weights_equal_gmv_on_correlation():
+    panel, log_returns = make_panel(seed=32)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+    sigma_np = np.sqrt(np.diag(Sigma_np))
+    D_inv = np.diag(1.0 / sigma_np)
+    C = pd.DataFrame(D_inv @ Sigma_np @ D_inv, index=UNIVERSE, columns=UNIVERSE)
+
+    w_mdp, _ = _mdp_long_only(Sigma, "test", asof)
+    x = (w_mdp * sigma_np) / float(w_mdp @ sigma_np)
+
+    w_gmv_c = _min_variance_long_only(C)
+    assert np.allclose(x, w_gmv_c, atol=1e-5, rtol=0)
+
+
+def test_mdp_risk_weights_scale_invariant():
+    panel, log_returns = make_panel(seed=33)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+
+    rng = np.random.default_rng(34)
+    k = rng.uniform(0.5, 2.0, size=N_ASSETS)
+    K = np.diag(k)
+    Sigma2_np = K @ Sigma_np @ K
+    Sigma2 = pd.DataFrame(Sigma2_np, index=UNIVERSE, columns=UNIVERSE)
+
+    w1, _ = _mdp_long_only(Sigma, "test", asof)
+    sigma1 = np.sqrt(np.diag(Sigma_np))
+    x1 = (w1 * sigma1) / float(w1 @ sigma1)
+
+    w2, _ = _mdp_long_only(Sigma2, "test", asof)
+    sigma2 = np.sqrt(np.diag(Sigma2_np))
+    x2 = (w2 * sigma2) / float(w2 @ sigma2)
+
+    assert np.allclose(x1, x2, atol=1e-5, rtol=0)
+
+
+def test_mdp_labels():
+    assert MostDiversified().label == "MDP(sample)"
+    assert MostDiversified(cov_estimator=ml.ledoit_wolf_cov).label == "MDP(ledoit_wolf)"
