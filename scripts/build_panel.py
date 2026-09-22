@@ -32,10 +32,8 @@ def main():
     if missing:
         raise SystemExit(f"Raw data missing tickers: {missing}")
     wide = wide.sort_index().loc[START:END, PANEL_TICKERS]
-    # Restrict to the US equity trading calendar (SPY's own listed dates).
-    # FX (EURUSD) trades on weekends/holidays equities don't; keeping those
-    # extra dates would union in non-trading days that ffill then papers
-    # over with stale equity closes.
+    # Restrict to the US equity trading calendar (SPY's own listed dates),
+    # so every instrument shares one calendar.
     trading_days = wide.index[wide["SPY"].notna()]
     wide = wide.loc[trading_days].ffill()
     OUT.parent.mkdir(parents=True, exist_ok=True)

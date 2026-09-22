@@ -1,6 +1,7 @@
 """Unit tests for maplab.models — synthetic data only, no real cache."""
 from __future__ import annotations
 
+import functools
 import logging
 
 import numpy as np
@@ -8,7 +9,7 @@ import pandas as pd
 import pytest
 
 import maplab as ml
-from maplab.contract import LONG_ONLY, LONG_SHORT, COV_LOOKBACK
+from maplab.contract import LONG_ONLY, LONG_SHORT, COV_LOOKBACK, TRADING_DAYS
 from maplab.data import Panel
 from maplab.models import (
     Strategy,
@@ -92,18 +93,19 @@ def test_maxsharpe_exante_sharpe_dominates_gmv_and_ew():
     asof = log_returns.index[COV_LOOKBACK]
 
     gmv = GMV()
-    msr = MaxSharpe()
+    msr = MaxSharpe(rf=0.0)
     ew = EqualWeight()
 
     mu, Sigma = gmv._estimate(panel, asof)
-    assert (mu - msr.rf).max() > 0  # sanity: non-degenerate for this seed
+    rf_ann = msr._rf_ann(panel, asof)
+    assert (mu - rf_ann).max() > 0  # sanity: non-degenerate for this seed
 
     def exante_sharpe(w):
         w = w.reindex(UNIVERSE)
         Sigma_np = Sigma.to_numpy()
         ret = float(w.to_numpy() @ mu.to_numpy())
         vol = float(np.sqrt(w.to_numpy() @ Sigma_np @ w.to_numpy()))
-        return (ret - msr.rf) / vol
+        return (ret - rf_ann) / vol
 
     s_gmv = exante_sharpe(gmv(panel, asof))
     s_msr = exante_sharpe(msr(panel, asof))
@@ -120,7 +122,7 @@ def test_maxsharpe_degenerate_case_falls_back_to_gmv(caplog):
     asof = log_returns.index[COV_LOOKBACK]
 
     gmv = GMV()
-    msr = MaxSharpe()
+    msr = MaxSharpe(rf=0.0)
 
     with caplog.at_level(logging.WARNING, logger="maplab.models"):
         w_msr = msr(panel, asof)
@@ -139,7 +141,7 @@ def test_maxsharpe_retries_once_on_solver_failure(monkeypatch):
 
     panel, log_returns = make_panel(seed=4)
     asof = log_returns.index[COV_LOOKBACK]
-    msr = MaxSharpe()
+    msr = MaxSharpe(rf=0.0)
 
     real_minimize = opt.minimize
     calls = {"n": 0}
@@ -170,7 +172,7 @@ def test_maxsharpe_raises_if_retry_also_fails(monkeypatch):
 
     panel, log_returns = make_panel(seed=5)
     asof = log_returns.index[COV_LOOKBACK]
-    msr = MaxSharpe()
+    msr = MaxSharpe(rf=0.0)
 
     class FakeResult:
         success = False
@@ -188,9 +190,65 @@ def test_maxsharpe_raises_if_retry_also_fails(monkeypatch):
     assert msr.retry_dates == [asof]
 
 
+# ── e2. MaxSharpe rf="panel": trailing mean×252 off the panel's "rf" frame ──
+
+def test_maxsharpe_rf_panel_uses_trailing_mean():
+    _, log_returns = make_panel(seed=8)
+    rng = np.random.default_rng(9)
+    rf_series = pd.DataFrame(
+        rng.normal(loc=0.00005, scale=0.0001, size=len(log_returns)),
+        index=log_returns.index, columns=["BIL"],
+    )
+    panel = Panel({"returns": log_returns, "rf": rf_series})
+    asof = log_returns.index[COV_LOOKBACK]
+
+    msr_panel = MaxSharpe(rf="panel")
+    rf_ann = msr_panel._rf_ann(panel, asof)
+
+    expected_rf_ann = float(
+        rf_series.loc[rf_series.index < asof].iloc[-COV_LOOKBACK:].mean().iloc[0] * TRADING_DAYS
+    )
+    assert np.isclose(rf_ann, expected_rf_ann)
+
+    w_panel = msr_panel(panel, asof)
+    w_float = MaxSharpe(rf=expected_rf_ann)(panel, asof)
+    pd.testing.assert_series_equal(w_panel, w_float, atol=1e-8, check_names=False)
+
+
+def test_maxsharpe_rf_panel_without_rf_frame_raises():
+    panel, log_returns = make_panel(seed=10)
+    asof = log_returns.index[COV_LOOKBACK]
+    msr = MaxSharpe(rf="panel")
+    with pytest.raises(ValueError):
+        msr(panel, asof)
+
+
+# ── e3. ann_sharpe / summary: rf required; constant daily Series == annual float
+
+def test_ann_sharpe_constant_rf_series_matches_annual_float():
+    idx = pd.bdate_range("2020-01-01", periods=300)
+    rng = np.random.default_rng(11)
+    r = pd.Series(rng.normal(0.0006, 0.01, size=300), index=idx)
+    rf_daily = 0.00008
+    rf_series = pd.Series(rf_daily, index=idx)
+    rf_annual = rf_daily * TRADING_DAYS
+
+    s_series = ml.ann_sharpe(r, rf_series)
+    s_float = ml.ann_sharpe(r, rf_annual)
+    assert np.isclose(s_series, s_float, atol=1e-10)
+
+
+def test_ann_sharpe_and_summary_require_rf():
+    r = pd.Series([0.01, -0.01, 0.02])
+    with pytest.raises(TypeError):
+        ml.ann_sharpe(r)
+    with pytest.raises(TypeError):
+        ml.summary(r)
+
+
 # ── f. No look-ahead: garbage in rows at/after asof must not change weights ─
 
-@pytest.mark.parametrize("strategy_cls", [GMV, MaxSharpe])
+@pytest.mark.parametrize("strategy_cls", [GMV, functools.partial(MaxSharpe, rf=0.0)])
 def test_no_lookahead(strategy_cls):
     panel, log_returns = make_panel(seed=6)
     asof = log_returns.index[COV_LOOKBACK]

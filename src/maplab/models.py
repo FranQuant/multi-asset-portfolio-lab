@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import scipy.optimize as opt
 
-from .contract import LONG_ONLY, LONG_SHORT, UNIVERSE, TRADING_DAYS, COV_LOOKBACK, RF_ANNUAL
+from .contract import LONG_ONLY, LONG_SHORT, UNIVERSE, TRADING_DAYS, COV_LOOKBACK
 from .covariance import sample_cov
 from .data import Panel
 
@@ -140,15 +140,38 @@ class MaxSharpe(Strategy):
     family = "Return-based"
     constraint = LONG_ONLY
 
-    def __init__(self, cov_estimator=sample_cov, lookback: int = COV_LOOKBACK, rf: float = RF_ANNUAL):
+    def __init__(self, cov_estimator=sample_cov, lookback: int = COV_LOOKBACK, rf: float | str = "panel"):
         super().__init__(cov_estimator=cov_estimator, lookback=lookback)
         self.rf = rf
         self.fallback_dates: list[pd.Timestamp] = []
         self.retry_dates: list[pd.Timestamp] = []
 
+    def _rf_ann(self, panel: Panel, asof: pd.Timestamp) -> float:
+        """Annualized risk-free rate for this asof.
+
+        rf="panel" (default): trailing mean of the panel's "rf" frame (daily
+        simple BIL returns) over the same lookback window as (mu, Sigma),
+        annualized ×252. A float bypasses the panel entirely (used by tests).
+        """
+        if isinstance(self.rf, str) and self.rf == "panel":
+            if "rf" not in panel:
+                raise ValueError(
+                    f"{self.label}: panel has no 'rf' frame at asof={asof}; "
+                    "pass rf as a float or add an 'rf' frame to the panel"
+                )
+            rf_slice = panel.slice(asof, "rf", self.lookback)
+            if len(rf_slice) < self.lookback:
+                raise ValueError(
+                    f"{self.label}: insufficient 'rf' history at asof={asof} "
+                    f"(got {len(rf_slice)} rows, need {self.lookback})"
+                )
+            return float(rf_slice.mean().iloc[0] * TRADING_DAYS)
+        return float(self.rf)
+
     def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
         mu, Sigma = self._estimate(panel, asof)
-        excess = mu - self.rf
+        rf_ann = self._rf_ann(panel, asof)
+        excess = mu - rf_ann
 
         if excess.max() <= 0:
             # Degenerate case: no long-only portfolio has positive expected

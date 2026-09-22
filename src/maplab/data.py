@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .contract import UNIVERSE, START, END, TRADING_DAYS, FILL_POLICY
+from .contract import UNIVERSE, RF_TICKER, START, END, TRADING_DAYS, FILL_POLICY
 
 
 def find_repo_root(start: Path | None = None) -> Path:
@@ -45,6 +45,31 @@ def load_prices(path: Path | None = None) -> pd.DataFrame:
     if FILL_POLICY == "ffill":
         px = px.ffill()
     return px
+
+
+def load_rf_returns(path: Path | None = None) -> pd.DataFrame:
+    """Load the risk-free daily simple-return series.
+
+    BIL (contract.RF_TICKER, 1-3m T-bills) is the risk-free numeraire, never
+    in UNIVERSE, so no model allocates to cash. This reads it out of the same
+    cached panel used by `load_prices`, forward-fills, and converts to simple
+    daily returns. One-column DataFrame named RF_TICKER, index aligned to
+    `load_prices()`.
+    """
+    root = find_repo_root()
+    path = path or root / "data" / "cache" / "prices.parquet"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. Run scripts/build_panel.py to ingest real data, "
+            "or use the synthetic fallback in notebook 00 for a dry run."
+        )
+    px = pd.read_parquet(path)
+    px.index = pd.to_datetime(px.index)
+    px = px.sort_index().loc[START:END, [RF_TICKER]]
+    if FILL_POLICY == "ffill":
+        px = px.ffill()
+    rf = px.pct_change().dropna(how="all")
+    return rf
 
 
 def to_log_returns(prices: pd.DataFrame) -> pd.DataFrame:

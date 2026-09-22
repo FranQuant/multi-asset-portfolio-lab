@@ -39,11 +39,8 @@ TRAIN_TEST_SPLIT = "2022-12-31"   # single split; 2023+ is the held-out window
 TRADING_DAYS = 252
 COV_LOOKBACK = 252                # days used to estimate the covariance matrix
 REBALANCE    = "ME"               # month-end rebalancing (pandas offset alias)
-# RF is only the Sharpe hurdle, not an earned return; a fixed 3% penalised
-# low-vol methods (GMV ~1.8% ann. return) pre-2022 and flipped rankings.
-# RF=0 puts every method on the same bar, is reproducible, and needs no
-# external series.
-RF_ANNUAL    = 0.0                # risk-free rate for Sharpe / tangency
+# Sharpe and tangency use BIL (RF_TICKER) daily returns as a time-varying
+# risk-free rate — load_rf_returns().
 COST_BPS     = 10.0               # one-way transaction cost, basis points
 
 # ── Returns convention ──────────────────────────────────────────────────────
