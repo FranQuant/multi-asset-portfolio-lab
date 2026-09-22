@@ -113,6 +113,58 @@ def _min_variance_long_only(Sigma: pd.DataFrame) -> np.ndarray:
     return res.x
 
 
+def _tangency_long_only(excess: np.ndarray, Sigma_np: np.ndarray,
+                        label: str, asof, on_retry=None) -> tuple[np.ndarray, bool]:
+    """Long-only max-Sharpe weights via the convex reformulation
+    min y'Σy s.t. excess'y = 1, y >= 0; w = y / sum(y).
+    Caller must ensure excess.max() > 0 (degenerate case handled by caller).
+    Returns (w, retried). On SLSQP failure logs a warning, retries once from
+    the interior x0, and raises RuntimeError if that also fails.
+    `on_retry`, if given, is called the moment a retry is committed to
+    (before the retry attempt runs), so callers can record the retry even
+    if the retry itself goes on to raise."""
+    excess_np = excess
+    n = len(excess_np)
+    i0 = int(np.argmax(excess_np))
+    y0 = np.zeros(n)
+    y0[i0] = 1.0 / excess_np[i0]
+
+    cons = [{"type": "eq", "fun": lambda y: excess_np @ y - 1.0, "jac": lambda y: excess_np}]
+    bounds = [(0.0, None)] * n
+    res = opt.minimize(
+        lambda y: y @ Sigma_np @ y, y0, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
+        bounds=bounds, constraints=cons,
+        options={"ftol": 1e-12, "maxiter": 1000},
+    )
+    retried = False
+    if not res.success:
+        # SLSQP occasionally reports failure (e.g. "Positive directional
+        # derivative for linesearch") within a hair of the true optimum
+        # when the argmax-only x0 starts right at a boundary — a
+        # linesearch quirk, not a bad solution. Retry once from a
+        # feasible interior point spread over all positive-excess
+        # assets; only raise if that also fails.
+        logger.warning(
+            "%s: SLSQP failed at asof=%s (%s); retrying with interior x0",
+            label, asof, res.message,
+        )
+        retried = True
+        if on_retry is not None:
+            on_retry()
+        pos = np.clip(excess_np, 0.0, None)
+        y0_retry = pos / (excess_np @ pos)
+        res = opt.minimize(
+            lambda y: y @ Sigma_np @ y, y0_retry, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
+            bounds=bounds, constraints=cons,
+            options={"ftol": 1e-12, "maxiter": 1000},
+        )
+        if not res.success:
+            raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message}")
+    y = res.x
+    w = y / y.sum()
+    return w, retried
+
+
 class GMV(Strategy):
     """Long-only global minimum-variance portfolio."""
 
@@ -189,41 +241,10 @@ class MaxSharpe(Strategy):
 
         Sigma_np = Sigma.to_numpy()
         excess_np = excess.to_numpy()
-        n = len(excess_np)
-        i0 = int(np.argmax(excess_np))
-        y0 = np.zeros(n)
-        y0[i0] = 1.0 / excess_np[i0]
-
-        cons = [{"type": "eq", "fun": lambda y: excess_np @ y - 1.0, "jac": lambda y: excess_np}]
-        bounds = [(0.0, None)] * n
-        res = opt.minimize(
-            lambda y: y @ Sigma_np @ y, y0, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
-            bounds=bounds, constraints=cons,
-            options={"ftol": 1e-12, "maxiter": 1000},
+        w, retried = _tangency_long_only(
+            excess_np, Sigma_np, self.label, asof,
+            on_retry=lambda: self.retry_dates.append(asof),
         )
-        if not res.success:
-            # SLSQP occasionally reports failure (e.g. "Positive directional
-            # derivative for linesearch") within a hair of the true optimum
-            # when the argmax-only x0 starts right at a boundary — a
-            # linesearch quirk, not a bad solution. Retry once from a
-            # feasible interior point spread over all positive-excess
-            # assets; only raise if that also fails.
-            logger.warning(
-                "%s: SLSQP failed at asof=%s (%s); retrying with interior x0",
-                self.label, asof, res.message,
-            )
-            self.retry_dates.append(asof)
-            pos = np.clip(excess_np, 0.0, None)
-            y0_retry = pos / (excess_np @ pos)
-            res = opt.minimize(
-                lambda y: y @ Sigma_np @ y, y0_retry, jac=lambda y: 2 * Sigma_np @ y, method="SLSQP",
-                bounds=bounds, constraints=cons,
-                options={"ftol": 1e-12, "maxiter": 1000},
-            )
-            if not res.success:
-                raise RuntimeError(f"{self.label}: SLSQP failed at asof={asof}: {res.message}")
-        y = res.x
-        w = y / y.sum()
         return pd.Series(w, index=Sigma.columns)
 
 
