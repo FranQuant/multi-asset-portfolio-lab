@@ -16,6 +16,7 @@ from maplab.models import (
     GMV,
     MaxSharpe,
     BetaTargetMinVar,
+    BlackLitterman,
     EqualWeight,
     gmv_closed_form,
     tangency_closed_form,
@@ -420,3 +421,132 @@ def test_beta_target_minvar_raises_on_market_not_in_universe():
     strat = BetaTargetMinVar(market="NOTATICKER")
     with pytest.raises(ValueError):
         strat(panel, asof)
+
+
+# ── k. BlackLitterman ─────────────────────────────────────────────────────
+
+def test_black_litterman_weights_valid():
+    panel, log_returns, rf = make_panel_with_rf(seed=20)
+    asof = log_returns.index[COV_LOOKBACK]
+    w = BlackLitterman()(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert np.isclose(w.sum(), 1.0)
+    assert (w >= -1e-12).all()
+
+
+def test_black_litterman_zero_k_matches_ew_and_mu_bl_equals_pi():
+    panel, log_returns, rf = make_panel_with_rf(seed=21)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman(k=0.0)
+
+    w = strat(panel, asof)
+    w_ew = pd.Series(1.0 / N_ASSETS, index=UNIVERSE)
+    pd.testing.assert_series_equal(w, w_ew, atol=1e-5, check_names=False, check_exact=False)
+
+    post = strat.posterior(panel, asof)
+    assert np.allclose(post["mu_bl"].to_numpy(), post["pi"].to_numpy(), atol=1e-14, rtol=0)
+
+
+def test_black_litterman_prior_identity_is_ew():
+    panel, log_returns, rf = make_panel_with_rf(seed=22)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman()
+    post = strat.posterior(panel, asof)
+
+    w = tangency_closed_form(post["pi"], post["Sigma"], 0.0)
+    w_ew = pd.Series(1.0 / N_ASSETS, index=UNIVERSE)
+    pd.testing.assert_series_equal(w, w_ew, atol=1e-10, check_names=False)
+
+
+def test_black_litterman_tau_invariance():
+    panel, log_returns, rf = make_panel_with_rf(seed=23)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    mu_bl_lo = BlackLitterman(tau=0.01).posterior(panel, asof)["mu_bl"]
+    mu_bl_hi = BlackLitterman(tau=1.0).posterior(panel, asof)["mu_bl"]
+    assert np.allclose(mu_bl_lo.to_numpy(), mu_bl_hi.to_numpy(), rtol=1e-10, atol=1e-14)
+
+
+def test_black_litterman_closed_form_matches_derivation():
+    panel, log_returns, rf = make_panel_with_rf(seed=24)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman(k=0.2)
+    post = strat.posterior(panel, asof)
+
+    Sigma_np = post["Sigma"].to_numpy()
+    delta = post["delta"]
+    w_ew = post["w_ew"].to_numpy()
+    signs = post["signs"].to_numpy()
+    sigma = post["sigma"].to_numpy()
+
+    lhs = np.linalg.solve(Sigma_np, post["mu_bl"].to_numpy())
+    D = np.diag(np.diag(Sigma_np))
+    rhs = delta * w_ew + 0.2 * np.linalg.solve(Sigma_np + D, signs * sigma)
+    assert np.allclose(lhs, rhs, rtol=1e-10, atol=1e-12)
+
+
+def test_black_litterman_views_match_independent_momentum_and_q():
+    panel, log_returns, rf = make_panel_with_rf(seed=25)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman(k=0.2, mom_skip=21)
+    post = strat.posterior(panel, asof)
+
+    rets = log_returns.loc[log_returns.index < asof].iloc[-COV_LOOKBACK:]
+    rf_slice = rf.loc[rf.index < asof].iloc[-COV_LOOKBACK:]
+    rf_log = np.log1p(rf_slice.iloc[:, 0])
+    excess = rets.sub(rf_log, axis=0)
+    momentum = excess.iloc[: COV_LOOKBACK - 21].sum()
+    signs_expected = np.sign(momentum.to_numpy())
+
+    assert np.array_equal(post["signs"].to_numpy(), signs_expected)
+    diff = (post["q"] - post["pi"]).to_numpy()
+    expected_diff = 0.2 * signs_expected * post["sigma"].to_numpy()
+    assert np.allclose(diff, expected_diff, atol=1e-14, rtol=0)
+
+
+def test_black_litterman_degenerate_falls_back_to_gmv(caplog):
+    panel, log_returns, rf = make_panel_with_rf(mean=-0.005, vol=0.01, seed=16)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman(k=10)
+
+    post = strat.posterior(panel, asof)
+    assert post["mu_bl"].max() <= 0
+
+    with caplog.at_level(logging.WARNING, logger="maplab.models"):
+        w = strat(panel, asof)
+    w_gmv = pd.Series(_min_variance_long_only(post["Sigma"]), index=post["Sigma"].columns)
+
+    pd.testing.assert_series_equal(w, w_gmv, atol=1e-8, check_names=False)
+    assert strat.fallback_dates == [asof]
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_black_litterman_concentration_bookkeeping():
+    panel, log_returns, rf = make_panel_with_rf(seed=20)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    strat_100 = BlackLitterman(k=0.2, effn_floor=100.0)
+    w_100 = strat_100(panel, asof)
+    assert strat_100.concentration_dates == [asof]
+
+    strat_default = BlackLitterman(k=0.2)
+    w_default = strat_default(panel, asof)
+
+    assert np.allclose(w_default.to_numpy(), w_100.to_numpy(), atol=0.0, rtol=0.0)
+
+
+def test_black_litterman_raises_without_rf_frame():
+    panel, log_returns = make_panel(seed=26)  # no "rf" frame
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BlackLitterman()
+    with pytest.raises(ValueError):
+        strat(panel, asof)
+
+
+def test_black_litterman_raises_on_invalid_mom_skip():
+    with pytest.raises(ValueError):
+        BlackLitterman(mom_skip=COV_LOOKBACK)
+
+
+def test_black_litterman_label():
+    assert BlackLitterman().label == "BL(k=0.1)(sample)"

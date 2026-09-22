@@ -378,6 +378,142 @@ class BetaTargetMinVar(Strategy):
         return pd.Series(res.x, index=Sigma.columns)
 
 
+class BlackLitterman(Strategy):
+    """Long-only Black-Litterman tangency portfolio with an equal-weight
+    prior and vol-scaled 12-1 momentum sign views.
+
+    Prior: EW-implied (Pi = delta * Sigma @ w_EW), not CAPM/SPY-implied — a
+    no-view BL posterior then collapses exactly to EW, the repo's benchmark,
+    so the views are measured directly against it. A CAPM/SPY prior would
+    instead make the no-view portfolio 100% SPY, which obscures what the
+    views themselves are doing.
+
+    Views: P = I (one view per asset), Q = Pi + k * sign(mom) * sigma — a
+    fixed, vol-scaled tilt in the direction of trailing 12-1 excess momentum,
+    not the trailing return itself as Q (that would just be the sample-mean
+    mu again, with none of BL's shrinkage toward the prior).
+
+    He-Litterman view uncertainty, Omega = diag(diag(tau*Sigma)), so tau
+    cancels out of mu_BL exactly; only k and sr_ref (through delta) matter
+    for the resulting weights. k=0.1 is the registered setting; k=0.2 is a
+    sensitivity check. At k>=0.2, absolute risk-off views (as in 2022)
+    concentrate weight in the few positive-momentum assets, because the
+    long-only, fully-invested portfolio has no cash asset to retreat to.
+    """
+
+    family = "Return-based"
+    constraint = LONG_ONLY
+    universe: list[str] = UNIVERSE
+
+    def __init__(
+        self,
+        cov_estimator=sample_cov,
+        lookback: int = COV_LOOKBACK,
+        k: float = 0.1,
+        sr_ref: float = 0.3,
+        mom_skip: int = 21,
+        tau: float = 0.05,
+        effn_floor: float = 5.0,
+    ):
+        super().__init__(cov_estimator=cov_estimator, lookback=lookback)
+        if not (0 <= mom_skip < lookback):
+            raise ValueError(
+                f"BlackLitterman: mom_skip must satisfy 0 <= mom_skip < lookback={lookback}, "
+                f"got {mom_skip}"
+            )
+        if not (sr_ref > 0):
+            raise ValueError(f"BlackLitterman: sr_ref must be > 0, got {sr_ref}")
+        if not (k >= 0):
+            raise ValueError(f"BlackLitterman: k must be >= 0, got {k}")
+        if not (tau > 0):
+            raise ValueError(f"BlackLitterman: tau must be > 0, got {tau}")
+        self.k = k
+        self.sr_ref = sr_ref
+        self.mom_skip = mom_skip
+        self.tau = tau
+        self.effn_floor = effn_floor
+        self.name = f"BL(k={k})"
+        self.fallback_dates: list[pd.Timestamp] = []
+        self.retry_dates: list[pd.Timestamp] = []
+        self.concentration_dates: list[pd.Timestamp] = []
+
+    def posterior(self, panel: Panel, asof: pd.Timestamp) -> dict:
+        """Compute the EW prior, momentum views, and He-Litterman posterior
+        mean at `asof`. Public so notebooks can inspect the intermediate
+        quantities (Pi, views, mu_BL) directly rather than just the final
+        weights.
+        """
+        if "rf" not in panel:
+            raise ValueError(
+                f"{self.label}: panel has no 'rf' frame at asof={asof}; "
+                "add an 'rf' frame to the panel"
+            )
+        _, Sigma = self._estimate(panel, asof)
+        Sigma = Sigma.loc[self.universe, self.universe]
+        Sigma_np = Sigma.to_numpy()
+
+        rets = panel.slice(asof, "returns", self.lookback)[self.universe]
+        rf_slice = panel.slice(asof, "rf", self.lookback)
+        if len(rf_slice) != self.lookback or rf_slice.isna().any().any():
+            raise ValueError(
+                f"{self.label}: insufficient/NaN 'rf' history for asof={asof} "
+                f"(got {len(rf_slice)} rows, need {self.lookback})"
+            )
+
+        n = len(self.universe)
+        w_ew = pd.Series(1.0 / n, index=self.universe)
+        sigma_ew = float(np.sqrt(w_ew.to_numpy() @ Sigma_np @ w_ew.to_numpy()))
+        delta = self.sr_ref / sigma_ew
+        pi = pd.Series(delta * (Sigma_np @ w_ew.to_numpy()), index=self.universe)
+        sigma = pd.Series(np.sqrt(np.diag(Sigma_np)), index=self.universe)
+
+        rf_log = np.log1p(rf_slice.iloc[:, 0])
+        excess = rets.sub(rf_log, axis=0)
+        momentum = excess.iloc[: self.lookback - self.mom_skip].sum()
+        signs = pd.Series(np.sign(momentum.to_numpy()), index=self.universe)
+        q = pi + self.k * signs * sigma
+
+        tS = self.tau * Sigma_np
+        Omega = np.diag(np.diag(tS))
+        mu_bl_np = pi.to_numpy() + tS @ np.linalg.solve(tS + Omega, (q - pi).to_numpy())
+        mu_bl = pd.Series(mu_bl_np, index=self.universe)
+
+        return {
+            "Sigma": Sigma, "sigma": sigma, "w_ew": w_ew, "delta": delta,
+            "pi": pi, "momentum": momentum, "signs": signs, "q": q, "mu_bl": mu_bl,
+        }
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        post = self.posterior(panel, asof)
+        Sigma = post["Sigma"]
+        mu_bl = post["mu_bl"]
+
+        if mu_bl.max() <= 0:
+            # Same rationale as MaxSharpe's degenerate case: no long-only
+            # portfolio has positive expected excess return under the BL
+            # posterior. Fall back to GMV on the same Sigma.
+            logger.warning(
+                "%s: degenerate BL posterior at asof=%s (max mu_bl=%.6f); "
+                "falling back to GMV weights", self.label, asof, mu_bl.max(),
+            )
+            self.fallback_dates.append(asof)
+            w = _min_variance_long_only(Sigma)
+            return pd.Series(w, index=Sigma.columns)
+
+        w, _ = _tangency_long_only(
+            mu_bl.to_numpy(), Sigma.to_numpy(), self.label, asof,
+            on_retry=lambda: self.retry_dates.append(asof),
+        )
+        effN = 1.0 / np.sum(w ** 2)
+        if effN < self.effn_floor:
+            self.concentration_dates.append(asof)
+            logger.info(
+                "%s: concentrated BL portfolio at asof=%s (effN=%.4f < floor=%.4f)",
+                self.label, asof, effN, self.effn_floor,
+            )
+        return pd.Series(w, index=Sigma.columns)
+
+
 class EqualWeight(Strategy):
     """1/N over the universe. No estimation, no lookback dependency."""
 
