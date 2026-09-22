@@ -14,6 +14,8 @@ import logging
 import numpy as np
 import pandas as pd
 import scipy.optimize as opt
+import scipy.cluster.hierarchy as sch
+from scipy.spatial.distance import pdist, squareform
 
 from .contract import LONG_ONLY, LONG_SHORT, UNIVERSE, TRADING_DAYS, COV_LOOKBACK
 from .covariance import sample_cov
@@ -603,6 +605,145 @@ class EqualRiskContribution(Strategy):
         _, Sigma = self._estimate(panel, asof)
         w, n_sweeps = _erc_long_only(Sigma, self.label, asof)
         self.sweeps.append(n_sweeps)
+        return pd.Series(w, index=Sigma.columns)
+
+
+_HRP_LINKAGES = ("single", "average", "ward")
+_HRP_BISECTIONS = ("tree", "positional")
+
+
+def _hrp_cluster_var(Sigma_np: np.ndarray, idx) -> float:
+    """Variance of the inverse-variance (IVP) portfolio on the sub-block idx."""
+    idx = list(idx)
+    sub = Sigma_np[np.ix_(idx, idx)]
+    p = 1.0 / np.diag(sub)
+    p = p / p.sum()
+    return float(p @ sub @ p)
+
+
+def _hrp_long_only(Sigma: pd.DataFrame, label: str, asof, linkage: str = "single",
+                   bisection: str = "tree", dist_of_dist: bool = True) -> tuple[np.ndarray, dict]:
+    """Long-only hierarchical risk parity (HRP). Closed-form arithmetic, no solver.
+
+    Recipe: C = D^-1 Sigma D^-1 (clipped to [-1, 1], unit diagonal);
+    d_ij = sqrt((1 - rho_ij) / 2); if dist_of_dist, cluster on the Euclidean
+    distance between columns of d (the literature's recipe), else on d directly;
+    hierarchical linkage (single / average / ward); then recursive bisection.
+    At every split, capital goes to the two sides in inverse proportion to the
+    variance of each side's inverse-variance portfolio:
+        alpha_L = V_R / (V_L + V_R).
+    bisection="tree" splits at each dendrogram node (a function of Sigma up to
+    linkage ties, permutation-equivariant). bisection="positional" splits the
+    leaf order into halves at floor(n/2), as in the literature's original
+    algorithm; its weights depend on the leaf orientation and therefore on the
+    input column order.
+
+    Only the diagonal blocks Sigma_LL, Sigma_RR enter an allocation; the cross
+    block Sigma_LR never does - it only shapes the tree. Identities: diagonal
+    Sigma (C = I) => inverse-variance weights for any tree and either bisection
+    (= long-only GMV); N = 2 => inverse variance for any rho; uniform scaling
+    c*Sigma leaves weights unchanged. Every weight is strictly positive.
+
+    Returns (w, info) with info = {"order", "Z", "splits"}; splits is a list of
+    (left_indices, right_indices, alpha_left).
+    """
+    if linkage not in _HRP_LINKAGES:
+        raise ValueError(f"{label}: unknown linkage {linkage!r}; expected one of {_HRP_LINKAGES}")
+    if bisection not in _HRP_BISECTIONS:
+        raise ValueError(f"{label}: unknown bisection {bisection!r}; expected one of {_HRP_BISECTIONS}")
+    Sigma_np = Sigma.to_numpy(dtype=float)
+    n = Sigma_np.shape[0]
+    if n < 2:
+        raise ValueError(f"{label}: HRP needs at least 2 assets, got {n} at asof={asof}")
+    diag = np.diag(Sigma_np)
+    if (diag <= 0).any():
+        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
+
+    sigma = np.sqrt(diag)
+    C = Sigma_np / np.outer(sigma, sigma)
+    C = 0.5 * (C + C.T)
+    C = np.clip(C, -1.0, 1.0)
+    np.fill_diagonal(C, 1.0)
+    D = np.sqrt(0.5 * (1.0 - C))
+    np.fill_diagonal(D, 0.0)
+    y = pdist(D, metric="euclidean") if dist_of_dist else squareform(D, checks=True)
+    Z = sch.linkage(y, method=linkage)
+    order = sch.leaves_list(Z)
+
+    w = np.ones(n)
+    splits = []
+    if bisection == "tree":
+        stack = [sch.to_tree(Z)]
+        while stack:
+            node = stack.pop()
+            if node.is_leaf():
+                continue
+            left, right = node.get_left(), node.get_right()
+            L, R = left.pre_order(), right.pre_order()
+            v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
+            a = 1.0 - v_l / (v_l + v_r)
+            w[L] *= a
+            w[R] *= 1.0 - a
+            splits.append((L, R, a))
+            stack += [left, right]
+    else:
+        items = [list(order)]
+        while items:
+            nxt = []
+            for it in items:
+                if len(it) <= 1:
+                    continue
+                h = len(it) // 2
+                L, R = it[:h], it[h:]
+                v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
+                a = 1.0 - v_l / (v_l + v_r)
+                w[L] *= a
+                w[R] *= 1.0 - a
+                splits.append((L, R, a))
+                nxt += [L, R]
+            items = nxt
+    return w, {"order": order, "Z": Z, "splits": splits}
+
+
+class HierarchicalRiskParity(Strategy):
+    """Long-only hierarchical risk parity. Default = tree-following bisection,
+    single linkage, distance-of-distances (the registered nb07 configuration)."""
+
+    name = "HRP"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def __init__(self, cov_estimator=sample_cov, lookback: int = COV_LOOKBACK,
+                 linkage: str = "single", bisection: str = "tree", dist_of_dist: bool = True):
+        if linkage not in _HRP_LINKAGES:
+            raise ValueError(f"unknown linkage {linkage!r}; expected one of {_HRP_LINKAGES}")
+        if bisection not in _HRP_BISECTIONS:
+            raise ValueError(f"unknown bisection {bisection!r}; expected one of {_HRP_BISECTIONS}")
+        super().__init__(cov_estimator=cov_estimator, lookback=lookback)
+        self.linkage = linkage
+        self.bisection = bisection
+        self.dist_of_dist = dist_of_dist
+        self.orders: list[np.ndarray] = []
+
+    @property
+    def label(self) -> str:
+        base = super().label
+        tags = []
+        if self.bisection != "tree":
+            tags.append(self.bisection)
+        if self.linkage != "single":
+            tags.append(self.linkage)
+        if not self.dist_of_dist:
+            tags.append("direct")
+        if not tags:
+            return base
+        return f"{self.name}[{','.join(tags)}]{base[len(self.name):]}"
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        w, info = _hrp_long_only(Sigma, self.label, asof, linkage=self.linkage,
+                                 bisection=self.bisection, dist_of_dist=self.dist_of_dist)
+        self.orders.append(info["order"])
         return pd.Series(w, index=Sigma.columns)
 
 

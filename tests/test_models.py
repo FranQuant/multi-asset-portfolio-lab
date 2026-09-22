@@ -19,6 +19,7 @@ from maplab.models import (
     BlackLitterman,
     MostDiversified,
     EqualRiskContribution,
+    HierarchicalRiskParity,
     EqualWeight,
     gmv_closed_form,
     tangency_closed_form,
@@ -27,6 +28,7 @@ from maplab.models import (
     _min_variance_long_only,
     _mdp_long_only,
     _erc_long_only,
+    _hrp_long_only,
 )
 
 
@@ -811,3 +813,189 @@ def test_erc_raises_if_not_converged():
 def test_erc_labels():
     assert EqualRiskContribution().label == "ERC(sample)"
     assert EqualRiskContribution(cov_estimator=ml.ledoit_wolf_cov).label == "ERC(ledoit_wolf)"
+
+
+# ── m. HierarchicalRiskParity ─────────────────────────────────────────────
+
+def _ivp_var_independent(Sigma_np, idx):
+    idx = list(idx)
+    sub = Sigma_np[np.ix_(idx, idx)]
+    p = 1.0 / np.diag(sub)
+    p = p / p.sum()
+    return float(p @ sub @ p)
+
+
+def test_hrp_weights_valid():
+    panel, log_returns = make_panel()
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = HierarchicalRiskParity()
+    w = strat(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert np.isclose(w.sum(), 1.0)
+    assert w.min() > 0
+    assert len(strat.orders) == 1
+
+
+def test_hrp_order_is_permutation():
+    panel, log_returns = make_panel()
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+
+    for bisection in ("tree", "positional"):
+        for linkage in ("single", "average", "ward"):
+            _, info = _hrp_long_only(Sigma, "test", asof, linkage=linkage, bisection=bisection)
+            assert np.array_equal(np.sort(info["order"]), np.arange(N_ASSETS))
+
+
+def test_hrp_split_identity():
+    panel, log_returns = make_panel(seed=48)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+
+    for bisection in ("tree", "positional"):
+        w, info = _hrp_long_only(Sigma, "test", asof, bisection=bisection)
+        for L, R, a in info["splits"]:
+            V_L = _ivp_var_independent(Sigma_np, L)
+            V_R = _ivp_var_independent(Sigma_np, R)
+            expected_a = V_R / (V_L + V_R)
+            assert abs(a - expected_a) <= 1e-12
+            mass_L = w[L].sum()
+            mass_R = w[R].sum()
+            assert abs(mass_L / (mass_L + mass_R) - expected_a) <= 1e-12
+
+
+def test_hrp_diagonal_is_inverse_variance():
+    rng = np.random.default_rng(50)
+    vols = rng.uniform(0.05, 0.30, size=N_ASSETS)
+    Sigma = pd.DataFrame(np.diag(vols ** 2), index=UNIVERSE, columns=UNIVERSE)
+    expected = (1.0 / vols ** 2) / np.sum(1.0 / vols ** 2)
+    expected_gmv = gmv_closed_form(Sigma).to_numpy()
+
+    for bisection in ("tree", "positional"):
+        w, _ = _hrp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"), bisection=bisection)
+        assert np.max(np.abs(w - expected)) <= 1e-12
+        assert np.max(np.abs(w - expected_gmv)) <= 1e-12
+
+
+def test_hrp_two_assets_is_inverse_variance():
+    v = np.array([0.08, 0.22])
+    for rho in (-0.5, 0.0, 0.8):
+        S = np.array([
+            [v[0] ** 2, rho * v[0] * v[1]],
+            [rho * v[0] * v[1], v[1] ** 2],
+        ])
+        Sigma = pd.DataFrame(S, index=["A", "B"], columns=["A", "B"])
+        expected = (1.0 / v ** 2) / np.sum(1.0 / v ** 2)
+        for bisection in ("tree", "positional"):
+            w, _ = _hrp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"), bisection=bisection)
+            assert np.max(np.abs(w - expected)) <= 1e-12
+
+
+def test_hrp_exchangeable_positional_depends_only_on_split_sizes():
+    n = 13
+    labels = [f"A{i}" for i in range(n)]
+    vol = 0.15
+
+    def V(k, rho):
+        return (1.0 - rho) / k + rho
+
+    def rec(k, mass, rho):
+        if k == 1:
+            return [mass]
+        h = k // 2
+        a = V(k - h, rho) / (V(h, rho) + V(k - h, rho))
+        return rec(h, mass * a, rho) + rec(k - h, mass * (1.0 - a), rho)
+
+    for rho, check_uniform in ((0.0, True), (0.5, False)):
+        C = np.full((n, n), rho)
+        np.fill_diagonal(C, 1.0)
+        Sigma = pd.DataFrame(vol ** 2 * C, index=labels, columns=labels)
+        w, _ = _hrp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"), bisection="positional")
+        expected = np.array(rec(n, 1.0, rho))
+        if check_uniform:
+            assert np.max(np.abs(w - 1.0 / n)) <= 1e-12
+        else:
+            assert np.max(np.abs(np.sort(w) - np.sort(expected))) <= 1e-12
+            assert np.max(np.abs(w - 1.0 / n)) > 1e-3
+
+
+def test_hrp_uniform_scale_invariance():
+    panel, log_returns = make_panel(seed=49)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma2 = Sigma * 7.3
+
+    for bisection in ("tree", "positional"):
+        w1, _ = _hrp_long_only(Sigma, "test", asof, bisection=bisection)
+        w2, _ = _hrp_long_only(Sigma2, "test", asof, bisection=bisection)
+        assert np.max(np.abs(w1 - w2)) <= 1e-12
+
+
+def test_hrp_tree_permutation_equivariance():
+    panel, log_returns = make_panel(seed=49)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+    w0, _ = _hrp_long_only(Sigma, "test", asof, bisection="tree")
+
+    rng = np.random.default_rng(51)
+    for _ in range(5):
+        p = rng.permutation(N_ASSETS)
+        Sigma_perm = Sigma.iloc[p, p]
+        w_perm, _ = _hrp_long_only(Sigma_perm, "test", asof, bisection="tree")
+        wb = np.empty(N_ASSETS)
+        wb[p] = w_perm
+        assert np.max(np.abs(wb - w0)) <= 1e-12
+
+
+def test_hrp_root_singleton_weight_and_correlation_blindness():
+    n = 13
+    labels = [f"A{i}" for i in range(n)]
+    rng = np.random.default_rng(52)
+    vols = rng.uniform(0.05, 0.30, size=n)
+
+    C = np.full((n, n), 0.6)
+    C[-1, :] = -0.3
+    C[:, -1] = -0.3
+    np.fill_diagonal(C, 1.0)
+    D = np.diag(vols)
+    Sigma = pd.DataFrame(D @ C @ D, index=labels, columns=labels)
+
+    w, info = _hrp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"), bisection="tree")
+    Z = info["Z"]
+    assert 12 in (int(Z[-1, 0]), int(Z[-1, 1]))
+
+    V_rest = _ivp_var_independent(Sigma.to_numpy(), list(range(n - 1)))
+    expected_w12 = V_rest / (vols[-1] ** 2 + V_rest)
+    assert abs(w[12] - expected_w12) <= 1e-12
+
+    C_cf = C.copy()
+    C_cf[12, :] = 0.0
+    C_cf[:, 12] = 0.0
+    C_cf[12, 12] = 1.0
+    Sigma_cf = pd.DataFrame(D @ C_cf @ D, index=labels, columns=labels)
+    w_cf, info_cf = _hrp_long_only(Sigma_cf, "test", pd.Timestamp("2020-01-01"), bisection="tree")
+    Z_cf = info_cf["Z"]
+    assert 12 in (int(Z_cf[-1, 0]), int(Z_cf[-1, 1]))
+    assert abs(w_cf[12] - w[12]) <= 1e-12
+
+
+def test_hrp_raises_on_bad_options():
+    with pytest.raises(ValueError):
+        HierarchicalRiskParity(linkage="complete")
+    with pytest.raises(ValueError):
+        HierarchicalRiskParity(bisection="halves")
+
+    Sigma = pd.DataFrame(
+        [[0.0, 0.0], [0.0, 0.04]], index=["A", "B"], columns=["A", "B"],
+    )
+    with pytest.raises(ValueError):
+        _hrp_long_only(Sigma, "test", pd.Timestamp("2020-01-01"))
+
+
+def test_hrp_labels():
+    assert HierarchicalRiskParity().label == "HRP(sample)"
+    assert HierarchicalRiskParity(cov_estimator=ml.ledoit_wolf_cov).label == "HRP(ledoit_wolf)"
+    assert HierarchicalRiskParity(bisection="positional").label == "HRP[positional](sample)"
+    assert HierarchicalRiskParity(linkage="ward").label == "HRP[ward](sample)"
+    assert HierarchicalRiskParity(dist_of_dist=False).label == "HRP[direct](sample)"
