@@ -75,7 +75,7 @@ WARMUP_DAYS = COV_LOOKBACK
 
 # ── Survivorship / continuity policy ────────────────────────────────────────
 # Instruments must be present for the FULL window. BTC-USD is deliberately
-# excluded: it does not exist back to 2003, so including it would inject a
+# excluded: it does not exist back to 2008, so including it would inject a
 # survivorship/availability bias into every cross-sectional comparison.
 # JNJ, XOM, and WMT were dropped from us_single_stock: they are not present in
 # the EODHD data archive backing this repo. Their sectors remain represented
