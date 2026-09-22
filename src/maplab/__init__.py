@@ -10,9 +10,12 @@ from . import contract
 from .contract import (
     UNIVERSE, ASSET_GROUPS, EQUITY_SLEEVE, GROUP_OF,
     START, END, TRAIN_TEST_SPLIT, TRADING_DAYS, COV_LOOKBACK,
-    REBALANCE, COST_BPS, RF_TICKER, PANEL_TICKERS,
+    REBALANCE, COST_BPS, RF_TICKER, FACTOR_TICKERS, PANEL_TICKERS,
 )
-from .data import Panel, load_prices, load_rf_returns, to_log_returns, to_simple_returns, find_repo_root
+from .data import (
+    Panel, load_prices, load_rf_returns, load_factor_returns,
+    to_log_returns, to_simple_returns, find_repo_root,
+)
 from .covariance import sample_cov, ledoit_wolf_cov, oas_cov, COV_ESTIMATORS
 from .metrics import (
     ann_return, ann_vol, ann_sharpe, max_drawdown, calmar, hit_rate,
@@ -25,8 +28,9 @@ from .plotting import apply_style, FAMILY_COLORS
 __all__ = [
     "contract", "UNIVERSE", "ASSET_GROUPS", "EQUITY_SLEEVE", "GROUP_OF",
     "START", "END", "TRAIN_TEST_SPLIT", "TRADING_DAYS", "COV_LOOKBACK",
-    "REBALANCE", "COST_BPS", "RF_TICKER", "PANEL_TICKERS",
-    "Panel", "load_prices", "load_rf_returns", "to_log_returns", "to_simple_returns", "find_repo_root",
+    "REBALANCE", "COST_BPS", "RF_TICKER", "FACTOR_TICKERS", "PANEL_TICKERS",
+    "Panel", "load_prices", "load_rf_returns", "load_factor_returns",
+    "to_log_returns", "to_simple_returns", "find_repo_root",
     "sample_cov", "ledoit_wolf_cov", "oas_cov", "COV_ESTIMATORS",
     "ann_return", "ann_vol", "ann_sharpe", "max_drawdown", "calmar",
     "hit_rate", "ann_turnover", "summary",

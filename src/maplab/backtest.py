@@ -22,7 +22,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .contract import REBALANCE, COST_BPS, WARMUP_DAYS, TRADING_DAYS
+from .contract import REBALANCE, COST_BPS, WARMUP_DAYS, TRADING_DAYS, RF_TICKER, FACTOR_TICKERS
 from .data import Panel
 
 
@@ -66,6 +66,14 @@ def backtest(
     weights_log : pd.DataFrame target weights at each rebalance date
     diag : dict               turnover series + realized cost, for analysis
     """
+    non_allocatable = set(simple_returns.columns) & (set(FACTOR_TICKERS) | {RF_TICKER})
+    if non_allocatable:
+        raise ValueError(
+            f"backtest: simple_returns contains non-allocatable column(s) {sorted(non_allocatable)} "
+            f"(RF_TICKER={RF_TICKER!r}, FACTOR_TICKERS={FACTOR_TICKERS!r}) — these are panel-only "
+            "and must never be sized into a portfolio."
+        )
+
     rets = simple_returns
     cols = list(rets.columns)
 

@@ -29,7 +29,12 @@ EQUITY_SLEEVE: list[str] = ASSET_GROUPS["equity"]
 # so no model allocates to cash. It rides along in the cached panel only so a
 # later step can build the RF series from it.
 RF_TICKER = "BIL"
-PANEL_TICKERS: list[str] = UNIVERSE + [RF_TICKER]
+
+# Panel-only: used to construct notebook 02's SIZE/VALUE factor diagnostics
+# (SIZE = IWM-SPY, VALUE = IWD-IWF). Never allocatable — not in UNIVERSE.
+FACTOR_TICKERS: list[str] = ["IWM", "IWD", "IWF"]
+
+PANEL_TICKERS: list[str] = UNIVERSE + [RF_TICKER] + FACTOR_TICKERS
 
 # ── Time & rebalancing conventions ──────────────────────────────────────────
 START = "2008-01-01"

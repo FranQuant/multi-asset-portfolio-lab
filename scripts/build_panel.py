@@ -5,7 +5,8 @@ Usage: place a long CSV at data/raw/eod_prices.csv with columns
 
     python scripts/build_panel.py
 
-Produces data/cache/prices.parquet restricted to the locked universe.
+Produces data/cache/prices.parquet restricted to PANEL_TICKERS (UNIVERSE +
+RF_TICKER + FACTOR_TICKERS); models see only UNIVERSE via load_prices().
 This script is the ONLY place raw data enters the repo.
 """
 from pathlib import Path

@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .contract import UNIVERSE, RF_TICKER, START, END, TRADING_DAYS, FILL_POLICY
+from .contract import UNIVERSE, RF_TICKER, FACTOR_TICKERS, START, END, TRADING_DAYS, FILL_POLICY
 
 
 def find_repo_root(start: Path | None = None) -> Path:
@@ -70,6 +70,30 @@ def load_rf_returns(path: Path | None = None) -> pd.DataFrame:
         px = px.ffill()
     rf = px.pct_change().dropna(how="all")
     return rf
+
+
+def load_factor_returns(path: Path | None = None) -> pd.DataFrame:
+    """Load daily log returns of the panel-only factor ETFs.
+
+    FACTOR_TICKERS (contract.FACTOR_TICKERS, currently IWM/IWD/IWF) are used
+    to construct notebook 02's SIZE/VALUE factor diagnostics — never in
+    UNIVERSE, never allocatable. Reads the same cached panel used by
+    `load_prices`, forward-fills, and converts to log returns (additive,
+    consistent with the rest of the harness's estimation convention).
+    """
+    root = find_repo_root()
+    path = path or root / "data" / "cache" / "prices.parquet"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. Run scripts/build_panel.py to ingest real data, "
+            "or use the synthetic fallback in notebook 00 for a dry run."
+        )
+    px = pd.read_parquet(path)
+    px.index = pd.to_datetime(px.index)
+    px = px.sort_index().loc[START:END, FACTOR_TICKERS]
+    if FILL_POLICY == "ffill":
+        px = px.ffill()
+    return np.log(px).diff().dropna(how="all")
 
 
 def to_log_returns(prices: pd.DataFrame) -> pd.DataFrame:
