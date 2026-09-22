@@ -227,6 +227,136 @@ class MaxSharpe(Strategy):
         return pd.Series(w, index=Sigma.columns)
 
 
+class BetaTargetMinVar(Strategy):
+    """Long-only minimum-variance with a CAPM beta floor.
+
+    Under CAPM, beta is the only priced source of risk: once you have fixed
+    the beta you want, every other source of variance is estimation noise to
+    be minimised away. There is no mu here at all, so unlike MaxSharpe this
+    can't become an error-maximizer over a noisy expected-return estimate —
+    the whole optimisation runs on Sigma and beta alone. beta_target is fixed
+    a priori (0.3 is the default); 0.5 is a sensitivity check, not a second
+    "better" choice.
+
+    Problem: min w'Sigma w  s.t.  sum(w)=1, w>=0, beta'w >= beta_target.
+    """
+
+    family = "Risk-based"
+    constraint = LONG_ONLY
+    universe: list[str] = UNIVERSE
+
+    def __init__(
+        self,
+        cov_estimator=sample_cov,
+        lookback: int = COV_LOOKBACK,
+        beta_target: float = 0.3,
+        market: str = "SPY",
+    ):
+        super().__init__(cov_estimator=cov_estimator, lookback=lookback)
+        self.beta_target = beta_target
+        self.market = market
+        self.name = f"BetaMinVar(β≥{beta_target})"
+        self.slack_dates: list[pd.Timestamp] = []
+        self.infeasible_dates: list[pd.Timestamp] = []
+        self.retry_dates: list[pd.Timestamp] = []
+
+    def _beta_vector(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        """CAPM betas of `self.universe` against `self.market`, on the same
+        trailing 252d window (strictly before `asof`, no look-ahead) as
+        `_estimate`'s Sigma.
+
+        excess_i = log_return_i - log1p(rf), rf the panel's daily simple BIL
+        return; beta_i = cov(excess_i, excess_market) / var(excess_market),
+        ddof=1 (pandas' default), consistent with Sigma's `returns.cov()`.
+        By construction beta_market == 1 exactly.
+        """
+        if self.market not in self.universe:
+            raise ValueError(f"{self.label}: market={self.market!r} not in universe {self.universe}")
+        if "rf" not in panel:
+            raise ValueError(
+                f"{self.label}: panel has no 'rf' frame at asof={asof}; "
+                "add an 'rf' frame to the panel"
+            )
+        rets = panel.slice(asof, "returns", self.lookback)[self.universe]
+        rf_slice = panel.slice(asof, "rf", self.lookback)
+        if len(rets) != self.lookback or rets.isna().any().any():
+            raise ValueError(
+                f"{self.label}: insufficient/NaN return history for asof={asof} "
+                f"(got {len(rets)} rows, need {self.lookback})"
+            )
+        if len(rf_slice) != self.lookback or rf_slice.isna().any().any():
+            raise ValueError(
+                f"{self.label}: insufficient/NaN 'rf' history for asof={asof} "
+                f"(got {len(rf_slice)} rows, need {self.lookback})"
+            )
+        rf_log = np.log1p(rf_slice.iloc[:, 0])
+        excess = rets.sub(rf_log, axis=0)
+        cov_with_mkt = excess.cov()[self.market]
+        var_mkt = float(excess[self.market].var())
+        return cov_with_mkt / var_mkt
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        beta = self._beta_vector(panel, asof)
+
+        if beta.max() < self.beta_target:
+            # No long-only combination (a convex combination of the beta_i's)
+            # can reach the target. Fall back to GMV rather than raise or
+            # silently violate the floor.
+            logger.warning(
+                "%s: infeasible beta target at asof=%s (max beta=%.4f < target=%.4f); "
+                "falling back to GMV weights", self.label, asof, beta.max(), self.beta_target,
+            )
+            self.infeasible_dates.append(asof)
+            w = _min_variance_long_only(Sigma)
+            return pd.Series(w, index=Sigma.columns)
+
+        w_gmv = _min_variance_long_only(Sigma)
+        beta_gmv = float(beta.reindex(Sigma.columns).to_numpy() @ w_gmv)
+        if beta_gmv - self.beta_target > 1e-6:
+            # GMV already clears the beta floor: the inequality constraint
+            # isn't binding, so the constrained optimum IS the GMV optimum.
+            self.slack_dates.append(asof)
+            return pd.Series(w_gmv, index=Sigma.columns)
+
+        n = Sigma.shape[0]
+        Sigma_np = Sigma.to_numpy()
+        beta_np = beta.reindex(Sigma.columns).to_numpy()
+        ones = np.ones(n)
+        x0 = np.full(n, 1.0 / n)
+        cons = [
+            {"type": "eq", "fun": lambda w: w.sum() - 1.0, "jac": lambda w: ones},
+            {"type": "ineq", "fun": lambda w: beta_np @ w - self.beta_target, "jac": lambda w: beta_np},
+        ]
+        bounds = [(0.0, 1.0)] * n
+        res = opt.minimize(
+            lambda w: w @ Sigma_np @ w, x0, jac=lambda w: 2 * Sigma_np @ w, method="SLSQP",
+            bounds=bounds, constraints=cons,
+            options={"ftol": 1e-12, "maxiter": 1000},
+        )
+        if not res.success:
+            # Same rationale as MaxSharpe's retry: an occasional SLSQP
+            # linesearch quirk near the true optimum, not a bad solution.
+            # Retry once from the highest-beta asset (guaranteed feasible,
+            # since beta.max() >= beta_target was already checked above).
+            logger.warning(
+                "%s: SLSQP failed at asof=%s (%s); retrying with beta-tilted x0",
+                self.label, asof, res.message,
+            )
+            self.retry_dates.append(asof)
+            i0 = int(np.argmax(beta_np))
+            y0_retry = np.zeros(n)
+            y0_retry[i0] = 1.0
+            res = opt.minimize(
+                lambda w: w @ Sigma_np @ w, y0_retry, jac=lambda w: 2 * Sigma_np @ w, method="SLSQP",
+                bounds=bounds, constraints=cons,
+                options={"ftol": 1e-12, "maxiter": 1000},
+            )
+            if not res.success:
+                raise RuntimeError(f"{self.label}: SLSQP failed at asof={asof}: {res.message}")
+        return pd.Series(res.x, index=Sigma.columns)
+
+
 class EqualWeight(Strategy):
     """1/N over the universe. No estimation, no lookback dependency."""
 

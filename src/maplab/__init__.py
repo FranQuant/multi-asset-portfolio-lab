@@ -22,7 +22,10 @@ from .metrics import (
     ann_turnover, summary,
 )
 from .backtest import backtest, rebalance_dates, first_eligible_rebalance
-from .models import Strategy, GMV, MaxSharpe, EqualWeight, gmv_closed_form, tangency_closed_form
+from .models import (
+    Strategy, GMV, MaxSharpe, BetaTargetMinVar, EqualWeight,
+    gmv_closed_form, tangency_closed_form,
+)
 from .plotting import apply_style, FAMILY_COLORS
 
 __all__ = [
@@ -35,7 +38,7 @@ __all__ = [
     "ann_return", "ann_vol", "ann_sharpe", "max_drawdown", "calmar",
     "hit_rate", "ann_turnover", "summary",
     "backtest", "rebalance_dates", "first_eligible_rebalance",
-    "Strategy", "GMV", "MaxSharpe", "EqualWeight",
+    "Strategy", "GMV", "MaxSharpe", "BetaTargetMinVar", "EqualWeight",
     "gmv_closed_form", "tangency_closed_form",
     "apply_style", "FAMILY_COLORS",
 ]

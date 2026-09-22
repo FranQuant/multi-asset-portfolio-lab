@@ -15,6 +15,7 @@ from maplab.models import (
     Strategy,
     GMV,
     MaxSharpe,
+    BetaTargetMinVar,
     EqualWeight,
     gmv_closed_form,
     tangency_closed_form,
@@ -36,6 +37,19 @@ def make_log_returns(n_days=300, mean=0.0005, vol=0.01, seed=0):
 def make_panel(**kwargs):
     log_returns = make_log_returns(**kwargs)
     return Panel({"returns": log_returns}), log_returns
+
+
+def make_panel_with_rf(n_days=300, mean=0.0005, vol=0.01, rf_mean=0.00002, rf_vol=0.0001, seed=0):
+    rng = np.random.default_rng(seed)
+    idx = pd.bdate_range("2020-01-01", periods=n_days)
+    log_returns = pd.DataFrame(
+        rng.normal(loc=mean, scale=vol, size=(n_days, N_ASSETS)), index=idx, columns=UNIVERSE,
+    )
+    rf = pd.DataFrame(
+        rng.normal(loc=rf_mean, scale=rf_vol, size=n_days), index=idx, columns=["BIL"],
+    )
+    panel = Panel({"returns": log_returns, "rf": rf})
+    return panel, log_returns, rf
 
 
 # ── a. GMV validity + matches closed form on a diagonal-dominant Sigma ──────
@@ -338,3 +352,71 @@ def test_labels():
     assert GMV().label == "GMV(sample)"
     assert MaxSharpe(cov_estimator=ml.ledoit_wolf_cov).label == "MaxSharpe(ledoit_wolf)"
     assert EqualWeight().label == "EqualWeight"
+
+
+# ── j. BetaTargetMinVar ───────────────────────────────────────────────────────
+
+def test_beta_target_minvar_weights_valid():
+    panel, log_returns, rf = make_panel_with_rf(seed=10)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar(beta_target=0.3)
+
+    w = strat(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert np.isclose(w.sum(), 1.0)
+    assert (w >= -1e-12).all()
+
+    beta = strat._beta_vector(panel, asof)
+    achieved = float(beta.reindex(UNIVERSE).to_numpy() @ w.to_numpy())
+    assert achieved >= 0.3 - 1e-8
+
+
+def test_beta_target_minvar_market_beta_is_one():
+    panel, log_returns, rf = make_panel_with_rf(seed=11)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar()
+
+    beta = strat._beta_vector(panel, asof)
+    assert np.isclose(beta["SPY"], 1.0, atol=1e-10)
+
+
+def test_beta_target_minvar_zero_target_matches_gmv_and_is_slack():
+    panel, log_returns, rf = make_panel_with_rf(seed=12)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar(beta_target=0.0)
+
+    w = strat(panel, asof)
+    w_gmv = GMV()(panel, asof)
+
+    pd.testing.assert_series_equal(w, w_gmv, atol=1e-6, check_names=False)
+    assert strat.slack_dates == [asof]
+
+
+def test_beta_target_minvar_infeasible_falls_back_to_gmv(caplog):
+    panel, log_returns, rf = make_panel_with_rf(seed=13)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar(beta_target=10.0)
+
+    with caplog.at_level(logging.WARNING, logger="maplab.models"):
+        w = strat(panel, asof)
+    w_gmv = GMV()(panel, asof)
+
+    pd.testing.assert_series_equal(w, w_gmv, atol=1e-8, check_names=False)
+    assert strat.infeasible_dates == [asof]
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+def test_beta_target_minvar_raises_without_rf_frame():
+    panel, log_returns = make_panel(seed=14)  # no "rf" frame
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar()
+    with pytest.raises(ValueError):
+        strat(panel, asof)
+
+
+def test_beta_target_minvar_raises_on_market_not_in_universe():
+    panel, log_returns, rf = make_panel_with_rf(seed=15)
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = BetaTargetMinVar(market="NOTATICKER")
+    with pytest.raises(ValueError):
+        strat(panel, asof)
