@@ -14,7 +14,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from maplab.contract import UNIVERSE
+from maplab.contract import PANEL_TICKERS
 
 ARCHIVE = Path.home() / "Projects" / "research-data-eodhd"
 MANIFEST = ARCHIVE / "results" / "eodhd_archive_symbol_date_ranges.csv"
@@ -25,7 +25,7 @@ def main():
     manifest_rows = list(csv.DictReader(open(MANIFEST)))
 
     frames = []
-    for ticker in UNIVERSE:
+    for ticker in PANEL_TICKERS:
         matches = [r for r in manifest_rows if r["symbol"].split(".")[0] == ticker]
         if not matches:
             raise SystemExit(f"{ticker} not found in {MANIFEST}")

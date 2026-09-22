@@ -6,29 +6,30 @@ everywhere — that is the point.
 """
 from __future__ import annotations
 
-# ── Universe: 26 instruments across 6 asset groups ──────────────────────────
+# ── Universe: 13 instruments across 6 asset groups, one per risk premium ───
 # Grouping is explicit so models can declare which sub-universe they are valid
 # on (e.g. equity-factor models should not allocate over commodities/FX).
 ASSET_GROUPS: dict[str, list[str]] = {
-    "us_single_stock": ["AAPL", "MSFT", "GOOGL", "NVDA", "JPM"],
-    "us_sector_etf":   ["XLK", "XLF", "XLE", "XLV", "XLP", "XLU"],
-    "us_broad_equity": ["SPY", "IWM"],
-    "intl_equity":     ["EFA", "EEM", "FXI"],
-    "fixed_income":    ["SHY", "IEF", "TLT", "AGG", "HYG"],
-    "commodity_fx":    ["GLD", "SLV", "DBC", "USO", "EURUSD"],
+    "equity":           ["SPY", "EFA", "EEM"],
+    "rates":            ["IEF", "TLT"],
+    "inflation_linked": ["TIP"],
+    "credit":           ["LQD", "HYG", "EMB"],
+    "real_assets":      ["VNQ", "DBC", "GLD"],
+    "fx":               ["UUP"],
 }
 
 UNIVERSE: list[str] = [t for group in ASSET_GROUPS.values() for t in group]
 
 # Sub-universe an equity cross-sectional model (factor tilts, CAPM) may use.
-# Commodities, FX, and rates are excluded because equity factors are not
-# defined on them — feeding them in produces meaningless betas.
-EQUITY_SLEEVE: list[str] = (
-    ASSET_GROUPS["us_single_stock"]
-    + ASSET_GROUPS["us_sector_etf"]
-    + ASSET_GROUPS["us_broad_equity"]
-    + ASSET_GROUPS["intl_equity"]
-)
+# For now this is just the equity group; notebook 02 will redefine its own
+# cross-section as needed.
+EQUITY_SLEEVE: list[str] = ASSET_GROUPS["equity"]
+
+# BIL (1-3m T-bills) is the risk-free numeraire, deliberately NOT in UNIVERSE,
+# so no model allocates to cash. It rides along in the cached panel only so a
+# later step can build the RF series from it.
+RF_TICKER = "BIL"
+PANEL_TICKERS: list[str] = UNIVERSE + [RF_TICKER]
 
 # ── Time & rebalancing conventions ──────────────────────────────────────────
 START = "2008-01-01"
@@ -74,12 +75,14 @@ WARMUP_DAYS = COV_LOOKBACK
 # liquid ETF/large-cap universe; not to be mistaken for precision.
 
 # ── Survivorship / continuity policy ────────────────────────────────────────
-# Instruments must be present for the FULL window. BTC-USD is deliberately
+# Instruments must be present for the FULL window. One instrument per distinct
+# risk premium, all live before 2008-01-01 (latest starts: EMB 2007-12-19,
+# HYG 2007-04, BIL 2007-05). Single stocks, sector ETFs, and near-duplicates
+# were removed: FXI (subset of EEM), USO (subset of DBC), SLV (near-duplicate
+# of GLD), AGG (a blend of the other fixed-income sleeves), SHY (replaced by
+# BIL as the RF numeraire), EURUSD (replaced by UUP). BTC-USD is deliberately
 # excluded: it does not exist back to 2008, so including it would inject a
 # survivorship/availability bias into every cross-sectional comparison.
-# JNJ, XOM, and WMT were dropped from us_single_stock: they are not present in
-# the EODHD data archive backing this repo. Their sectors remain represented
-# via the sector ETFs (XLV, XLE, XLP).
 EXCLUDED_FOR_CONTINUITY: list[str] = ["BTC-USD"]
 
 GROUP_OF: dict[str, str] = {

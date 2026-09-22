@@ -13,7 +13,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from maplab.contract import UNIVERSE, START, END
+from maplab.contract import PANEL_TICKERS, START, END
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw" / "eod_prices.csv"
@@ -28,10 +28,10 @@ def main():
         wide = df.pivot(index="Date", columns="Ticker", values="AdjClose")
     else:                                                  # already wide
         wide = df.set_index("Date")
-    missing = [t for t in UNIVERSE if t not in wide.columns]
+    missing = [t for t in PANEL_TICKERS if t not in wide.columns]
     if missing:
         raise SystemExit(f"Raw data missing tickers: {missing}")
-    wide = wide.sort_index().loc[START:END, UNIVERSE]
+    wide = wide.sort_index().loc[START:END, PANEL_TICKERS]
     # Restrict to the US equity trading calendar (SPY's own listed dates).
     # FX (EURUSD) trades on weekends/holidays equities don't; keeping those
     # extra dates would union in non-trading days that ffill then papers
