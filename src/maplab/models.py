@@ -546,6 +546,66 @@ class MostDiversified(Strategy):
         return pd.Series(w, index=Sigma.columns)
 
 
+def _erc_long_only(Sigma: pd.DataFrame, label: str, asof, tol: float = 1e-12,
+                    maxiter: int = 1000) -> tuple[np.ndarray, int]:
+    """Long-only equal-risk-contribution (ERC) portfolio: w_i (Sigma w)_i equal for
+    all i, 1'w = 1, w > 0. Solved via the strictly convex surrogate
+        min_{y>0}  0.5 y'Sigma y - (1/N) sum_i log y_i,      w = y / 1'y,
+    whose stationarity condition y_i (Sigma y)_i = 1/N gives equal risk
+    contributions exactly; the log barrier makes w > 0 automatic, so unlike the
+    tangency/MDP QPs there is no boundary case and no fallback. The solution is
+    unique. Cyclical coordinate descent: with c_i = sum_{j != i} Sigma_ij y_j,
+    each coordinate solves Sigma_ii y_i^2 + c_i y_i - 1/N = 0, taking the
+    positive root. Identities: risk weights x = w*sigma/(w'sigma) equal ERC run
+    on the correlation matrix C = D^-1 Sigma D^-1; w_i * beta_i,p = 1/N where
+    beta_i,p = (Sigma w)_i / w'Sigma w. Special cases: constant correlation =>
+    inverse vol (any N); N = 2 => inverse vol for any rho. Scale equivariance:
+    w(K Sigma K) is proportional to K^-1 w(Sigma).
+    """
+    Sigma_np = Sigma.to_numpy()
+    n = Sigma_np.shape[0]
+    diag = np.diag(Sigma_np)
+    if (diag <= 0).any():
+        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
+
+    b = 1.0 / n
+    sigma = np.sqrt(diag)
+    y = (1.0 / sigma) / np.sum(1.0 / sigma)
+
+    dev = np.inf
+    for sweep in range(1, maxiter + 1):
+        for i in range(n):
+            c = Sigma_np[i] @ y - Sigma_np[i, i] * y[i]
+            y[i] = (-c + np.sqrt(c * c + 4.0 * Sigma_np[i, i] * b)) / (2.0 * Sigma_np[i, i])
+        dev = np.max(np.abs(y * (Sigma_np @ y) - b))
+        if dev <= tol:
+            w = y / y.sum()
+            return w, sweep
+
+    raise RuntimeError(
+        f"{label}: ERC coordinate descent failed to converge at asof={asof} "
+        f"after {maxiter} sweeps (max|y_i(Sy)_i - 1/N| = {dev:.3e})"
+    )
+
+
+class EqualRiskContribution(Strategy):
+    """Long-only equal risk contribution (ERC) portfolio."""
+
+    name = "ERC"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def __init__(self, cov_estimator=sample_cov, lookback: int = COV_LOOKBACK):
+        super().__init__(cov_estimator=cov_estimator, lookback=lookback)
+        self.sweeps: list[int] = []
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        w, n_sweeps = _erc_long_only(Sigma, self.label, asof)
+        self.sweeps.append(n_sweeps)
+        return pd.Series(w, index=Sigma.columns)
+
+
 class EqualWeight(Strategy):
     """1/N over the universe. No estimation, no lookback dependency."""
 
@@ -596,3 +656,19 @@ def mdp_closed_form(Sigma: pd.DataFrame) -> pd.Series:
         raise ValueError(f"mdp_closed_form: denominator 1'Σ⁻¹σ = {denom!r} <= 0")
     w = Sigma_inv_sigma / denom
     return pd.Series(w, index=Sigma.columns)
+
+
+def risk_contributions(w: pd.Series | np.ndarray, Sigma: pd.DataFrame) -> pd.Series:
+    """Total risk contribution of each asset: RC_i = w_i (Σw)_i / √(w'Σw),
+    so that sum_i RC_i = √(w'Σw) exactly (Euler's theorem for the
+    homogeneous-of-degree-1 risk measure σ_p)."""
+    if isinstance(w, pd.Series):
+        w_np = w.reindex(Sigma.columns).to_numpy()
+    else:
+        w_np = np.asarray(w)
+    Sigma_np = Sigma.to_numpy()
+    var = float(w_np @ Sigma_np @ w_np)
+    if var <= 0:
+        raise ValueError(f"risk_contributions: w'Σw = {var!r} <= 0")
+    rc = (w_np * (Sigma_np @ w_np)) / np.sqrt(var)
+    return pd.Series(rc, index=Sigma.columns)

@@ -18,12 +18,15 @@ from maplab.models import (
     BetaTargetMinVar,
     BlackLitterman,
     MostDiversified,
+    EqualRiskContribution,
     EqualWeight,
     gmv_closed_form,
     tangency_closed_form,
     mdp_closed_form,
+    risk_contributions,
     _min_variance_long_only,
     _mdp_long_only,
+    _erc_long_only,
 )
 
 
@@ -670,3 +673,141 @@ def test_mdp_risk_weights_scale_invariant():
 def test_mdp_labels():
     assert MostDiversified().label == "MDP(sample)"
     assert MostDiversified(cov_estimator=ml.ledoit_wolf_cov).label == "MDP(ledoit_wolf)"
+
+
+# ── l. EqualRiskContribution ─────────────────────────────────────────────
+
+def test_erc_weights_valid():
+    panel, log_returns = make_panel()
+    asof = log_returns.index[COV_LOOKBACK]
+    strat = EqualRiskContribution()
+    w = strat(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert np.isclose(w.sum(), 1.0)
+    assert w.min() > 0
+    assert len(strat.sweeps) == 1
+
+
+def test_erc_equal_risk_contributions():
+    panel, log_returns = make_panel(seed=40)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    w, _ = _erc_long_only(Sigma, "test", asof)
+    w_series = pd.Series(w, index=Sigma.columns)
+
+    rc = risk_contributions(w_series, Sigma)
+    shares = rc / rc.sum()
+    assert np.allclose(shares.to_numpy(), 1.0 / N_ASSETS, atol=1e-11, rtol=0)
+
+    port_vol = np.sqrt(float(w @ Sigma.to_numpy() @ w))
+    assert np.isclose(rc.sum(), port_vol, atol=1e-12, rtol=0)
+
+
+def test_erc_constant_correlation_is_inverse_vol():
+    rng = np.random.default_rng(41)
+    vols = rng.uniform(0.05, 0.30, size=N_ASSETS)
+    for rho in (0.0, 0.3, 0.7):
+        C = np.full((N_ASSETS, N_ASSETS), rho)
+        np.fill_diagonal(C, 1.0)
+        D = np.diag(vols)
+        Sigma = pd.DataFrame(D @ C @ D, index=UNIVERSE, columns=UNIVERSE)
+
+        w, _ = _erc_long_only(Sigma, "test", pd.Timestamp("2020-01-01"))
+        expected = (1.0 / vols) / np.sum(1.0 / vols)
+        assert np.max(np.abs(w - expected)) <= 1e-11
+
+
+def test_erc_two_assets_is_inverse_vol():
+    v = np.array([0.08, 0.22])
+    for rho in (-0.5, 0.0, 0.8):
+        S = np.array([
+            [v[0] ** 2, rho * v[0] * v[1]],
+            [rho * v[0] * v[1], v[1] ** 2],
+        ])
+        Sigma = pd.DataFrame(S, index=["A", "B"], columns=["A", "B"])
+        w, _ = _erc_long_only(Sigma, "test", pd.Timestamp("2020-01-01"))
+        expected = (1.0 / v) / np.sum(1.0 / v)
+        assert np.max(np.abs(w - expected)) <= 1e-11
+
+
+def test_erc_vol_between_gmv_and_ew():
+    panel, log_returns = make_panel(seed=42)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+
+    w_erc, _ = _erc_long_only(Sigma, "test", asof)
+    w_gmv = _min_variance_long_only(Sigma)
+    w_ew = np.full(N_ASSETS, 1.0 / N_ASSETS)
+
+    def port_vol(w):
+        return np.sqrt(float(w @ Sigma_np @ w))
+
+    assert port_vol(w_gmv) <= port_vol(w_erc) + 1e-12
+    assert port_vol(w_erc) <= port_vol(w_ew) + 1e-12
+
+
+def test_erc_risk_weights_equal_erc_on_correlation():
+    panel, log_returns = make_panel(seed=43)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+    sigma_np = np.sqrt(np.diag(Sigma_np))
+    D_inv = np.diag(1.0 / sigma_np)
+    C = pd.DataFrame(D_inv @ Sigma_np @ D_inv, index=UNIVERSE, columns=UNIVERSE)
+
+    w_erc, _ = _erc_long_only(Sigma, "test", asof)
+    x = (w_erc * sigma_np) / float(w_erc @ sigma_np)
+
+    w_erc_c, _ = _erc_long_only(C, "test", asof)
+    assert np.max(np.abs(x - w_erc_c)) <= 1e-11
+
+
+def test_erc_scale_equivariance():
+    panel, log_returns = make_panel(seed=44)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+
+    rng = np.random.default_rng(45)
+    k = rng.uniform(0.5, 2.0, size=N_ASSETS)
+    K = np.diag(k)
+    Sigma2 = pd.DataFrame(K @ Sigma_np @ K, index=UNIVERSE, columns=UNIVERSE)
+
+    w1, _ = _erc_long_only(Sigma, "test", asof)
+    w2, _ = _erc_long_only(Sigma2, "test", asof)
+    w2_back = (w2 * k) / np.sum(w2 * k)
+
+    assert np.max(np.abs(w1 - w2_back)) <= 1e-11
+
+
+def test_erc_weight_times_beta_is_one_over_n():
+    panel, log_returns = make_panel(seed=46)
+    asof = log_returns.index[COV_LOOKBACK]
+
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_np = Sigma.to_numpy()
+
+    w, _ = _erc_long_only(Sigma, "test", asof)
+    port_var = float(w @ Sigma_np @ w)
+    beta = (Sigma_np @ w) / port_var
+
+    assert np.max(np.abs(w * beta - 1.0 / N_ASSETS)) <= 1e-11
+
+
+def test_erc_raises_if_not_converged():
+    panel, log_returns = make_panel(seed=47)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+
+    with pytest.raises(RuntimeError):
+        _erc_long_only(Sigma, "test", asof, maxiter=1)
+
+
+def test_erc_labels():
+    assert EqualRiskContribution().label == "ERC(sample)"
+    assert EqualRiskContribution(cov_estimator=ml.ledoit_wolf_cov).label == "ERC(ledoit_wolf)"

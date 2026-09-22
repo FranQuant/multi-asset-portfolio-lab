@@ -27,6 +27,7 @@ from .models import (
     gmv_closed_form, tangency_closed_form,
 )
 from .models import MostDiversified, mdp_closed_form
+from .models import EqualRiskContribution, risk_contributions
 from .plotting import apply_style, FAMILY_COLORS
 
 __all__ = [
@@ -43,4 +44,5 @@ __all__ = [
     "gmv_closed_form", "tangency_closed_form",
     "apply_style", "FAMILY_COLORS",
     "MostDiversified", "mdp_closed_form",
+    "EqualRiskContribution", "risk_contributions",
 ]
