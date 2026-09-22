@@ -23,7 +23,8 @@ new files unless asked. The plan lives in ROADMAP.md (local); read it if present
   (`fallback_dates` / `retry_dates`), raise on real failure.
 - Estimation on LOG returns via `Panel.slice`; `mu = mean*252 + 0.5*diag(Sigma)`.
 - Use fresh strategy instances per backtest.
-- Sharpe uses `RF_ANNUAL = 0`; notebooks must state the caveat.
+- Sharpe and tangency use BIL daily returns as a time-varying risk-free rate
+  (load_rf_returns); rf is a required argument.
 - Notebooks: execute with `nbconvert --execute --inplace`; HTML exports go to
   `~/Desktop`, never into the repo.
 - Notebooks are committed with outputs cleared (run, verify, export HTML
