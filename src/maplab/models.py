@@ -813,3 +813,33 @@ def risk_contributions(w: pd.Series | np.ndarray, Sigma: pd.DataFrame) -> pd.Ser
         raise ValueError(f"risk_contributions: w'Σw = {var!r} <= 0")
     rc = (w_np * (Sigma_np @ w_np)) / np.sqrt(var)
     return pd.Series(rc, index=Sigma.columns)
+
+
+class InverseVol(Strategy):
+    """Long-only inverse-vol weights w ∝ 1/σ, σ = sqrt(diag Σ) from the
+    strategy's own covariance estimator (sample by default, as in nb05/nb06)."""
+
+    name = "IV"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        sigma = np.sqrt(np.diag(Sigma.to_numpy()))
+        w = (1.0 / sigma) / np.sum(1.0 / sigma)
+        return pd.Series(w, index=Sigma.columns)
+
+
+class InverseVariance(Strategy):
+    """Long-only inverse-variance weights w ∝ 1/diag(Σ) -- HRP's reference
+    case (HRP on diag(Σ) = IVP). Sample covariance by default, as in nb07."""
+
+    name = "IVP"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        diag = np.diag(Sigma.to_numpy())
+        w = (1.0 / diag) / np.sum(1.0 / diag)
+        return pd.Series(w, index=Sigma.columns)

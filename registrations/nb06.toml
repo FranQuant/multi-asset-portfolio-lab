@@ -1,0 +1,123 @@
+notebook = "notebooks/06_risk_parity_erc.ipynb"
+provenance = "transcribed from notebook §2 at commit 210adef"
+text = '''
+## §2 PRE-REGISTRATION
+
+**Registered:** ERC(sample). **Reproduction gate:** GMV(sample), EW,
+MDP(sample). **Sensitivity:** ERC(ledoit_wolf). **Reference:** IV (inverse
+vol, notebook-local, sample vols on the same 252d window) — never
+backtested with a shrinkage estimator, same convention as notebook 05.
+
+**Windows:** full / train (&#8804; 2022-12-31) / test (2023+). Paired test =
+daily return difference, t = mean/sd&#183;&#8730;n, plain OLS, no HAC; counts
+only at &#124;t&#124; &#8805; 2.
+
+Directions for H1/H2 were fixed by a **read-only snapshot check** at
+2014-12-31 / 2017-12-31 / 2022-12-31, run **before** this notebook, on the
+sample-covariance ERC/GMV/MDP solutions at those three dates only.
+
+**H1 (corner, direction from the snapshot: SHRINKS):** w_UUP(ERC) &lt;
+w_UUP(GMV) AND w_UUP(ERC) &lt; w_UUP(MDP). Supported only if both hold at
+2022-12-31 AND on &gt; 50% of the 208 rebalances AND on &gt; 50% of the 40
+test rebalances. &#946;<sub>UUP,p</sub> is reported alongside as context, not
+as a pass condition.
+
+**H2 (effN, direction from the snapshot: &#8805;):** effN(ERC) &#8805;
+max(effN GMV, effN MDP) on &gt; 50% of the 208 rebalances AND &gt; 50% of the
+40 test rebalances.
+
+**H3 (null):** ERC &#8722; GMV and ERC &#8722; MDP, **&Delta;&alpha; from the
+direct diff-regression**, &#124;t&#124; &lt; 2. The *total* paired difference is
+reported with the &#946; decomposition but carries **no directional claim**
+— ERC runs at a higher ex-ante vol than GMV on the same &Sigma;, so a raw
+return gap between them is expected and is not itself evidence of anything.
+Registering H3 on &Delta;&alpha; is what makes the test about the ERC construction
+rather than about the vol difference.
+
+**H4 (ERC &#8722; EW &lt; 0, beta-driven):** supported only if the
+full-window paired t &#8804; &#8722;2 AND the test-window mean is also
+negative AND &#124;&Delta;&#946; part&#124; &gt; &#124;&Delta;&#945;&#124;.
+Same rule as notebook 05's H4.
+
+**H5 (nulls):** ERC(LW) &#8722; ERC(S) null (&#124;t&#124; &lt; 2, full and
+test); ERC(S) &#8722; IV &Delta;&#945; null (&#124;t&#124; &lt; 2, direct
+diff-regression).
+
+A pass on the full window only is reported as "not robust", never
+"supported".
+
+**Honest limitation:** the snapshot dates that fixed the H1/H2 directions
+are in-sample — 2022-12-31 is inside the train window, and it is also one
+of the dates this notebook backtests over. The &gt; 50%-of-**test**
+requirement (2023+, entirely out of that snapshot) is the guard against
+that circularity; it does not remove the circularity from the 2022-12-31
+single-date check itself, which is reported as description, not as a
+pass/fail condition on its own.
+
+Note on this cell's H3 wording: the registered statistic (&Delta;&alpha;) is as
+fixed in the design before this notebook was built; an earlier draft of this
+cell described H3 as a test on the total paired difference, which was a
+transcription error, not a choice made after seeing results. Both
+statistics are reported in &#167;6 either way, so the reader can apply
+whichever reading they prefer.'''
+
+[[hypothesis]]
+id = "H1"
+label = 'H1 (w_UUP ERC < GMV and < MDP)'
+kind = "count"
+statistic = "w_UUP(ERC) < w_UUP(GMV) AND w_UUP(ERC) < w_UUP(MDP) at the 208 rebalances; β_UUP,p reported as context"
+direction = "<"
+rule_text = 'both hold at 2022-12-31 AND on > 50% of the 208 rebalances AND on > 50% of the 40 test rebalances'
+evaluated = false
+
+[[hypothesis]]
+id = "H2"
+label = 'H2 (effN(ERC) ≥ max(effN GMV, effN MDP))'
+kind = "count"
+statistic = "effN(ERC) ≥ max(effN GMV, effN MDP) at the 208 rebalances"
+direction = ">"
+rule_text = 'holds on > 50% of the 208 rebalances AND > 50% of the 40 test rebalances'
+evaluated = false
+
+[[hypothesis]]
+id = "H3_GMV"
+label = 'H3 (Δα, ERC − GMV null)'
+kind = "null"
+statistic = "t of Δα, direct diff-regression ERC − GMV"
+rule_text = '|t| < 2; total paired difference reported with the β decomposition, no directional claim'
+evaluated = false
+
+[[hypothesis]]
+id = "H3_MDP"
+label = 'H3 (Δα, ERC − MDP null)'
+kind = "null"
+statistic = "t of Δα, direct diff-regression ERC − MDP"
+rule_text = '|t| < 2; total paired difference reported with the β decomposition, no directional claim'
+evaluated = false
+
+[[hypothesis]]
+id = "H4"
+label = 'H4 (ERC − EW < 0, beta-driven)'
+kind = "directional_t"
+statistic = "paired daily difference ERC − EW: full-window t, test-window mean, |Δβ part| vs |Δα|"
+direction = "<"
+beta_condition = true
+allow_not_robust = true
+rule_text = 'supported only if the full-window paired t ≤ −2 AND the test-window mean is also negative AND |Δβ part| > |Δα|; a pass on the full window only is "not robust"'
+evaluated = false
+
+[[hypothesis]]
+id = "H5_LW"
+label = 'H5 (ERC(LW) − ERC(S) null)'
+kind = "null"
+statistic = "t of the paired daily difference ERC(LW) − ERC(S), full and test"
+rule_text = '|t| < 2, full and test'
+evaluated = false
+
+[[hypothesis]]
+id = "H5_IV"
+label = 'H5 (ERC(S) − IV Δα null)'
+kind = "null"
+statistic = "t of Δα, direct diff-regression ERC(S) − IV"
+rule_text = '|t| < 2'
+evaluated = false

@@ -1,0 +1,85 @@
+notebook = "notebooks/05_most_diversified.ipynb"
+provenance = "transcribed from notebook §2 at commit 210adef"
+text = '''
+## §2 PRE-REGISTRATION
+
+**Registered:** MDP(sample). **Reproduction gate:** GMV(sample),
+MaxSharpe(sample), EW. **Sensitivity:** MDP(ledoit_wolf); IV (inverse vol,
+notebook-local, sample vols on the same 252d window).
+
+**Windows:** full / train (≤ 2022-12-31) / test (2023+). Paired test =
+daily return difference, t = mean/sd·√n, plain OLS, no HAC; counts only at
+&#124;t&#124; ≥ 2.
+
+Directions for H1/H2 were fixed by a read-only snapshot at 2014-12-31 /
+2017-12-31 / 2022-12-31 before any backtest (2022-12-31 is a train-window
+date).
+
+**H1:** effN(MDP) ≤ effN(GMV) on > 50% of the 208 rebalances. Test window
+count reported separately.
+
+**H2:** UUP weight MDP ≥ GMV on > 50% of rebalances, and the UUP corner
+persists at 2022-12-31. Test window count reported separately.
+
+**H3:** MDP − GMV null: &#124;t&#124; < 2 on full and test. β decomposition reported.
+
+**H4:** MDP − EW < 0, with &#124;Δβ part&#124; > &#124;Δα&#124; and Δα &#124;t&#124; < 2. Supported only
+if full-window t ≤ −2 AND the test-window mean is also negative.
+
+**H5:** MDP(LW) − MDP(S) null (&#124;t&#124; < 2, full and test); MDP − IV Δα null (&#124;t&#124; < 2).
+
+A pass on the full window only is reported as "not robust", never
+"supported".'''
+
+[[hypothesis]]
+id = "H1"
+label = 'H1 (effN(MDP) ≤ effN(GMV))'
+kind = "count"
+statistic = "effN(MDP) ≤ effN(GMV) at the 208 rebalances; test-window count reported separately"
+direction = "<"
+rule_text = 'holds on > 50% of the 208 rebalances; test window count reported separately'
+evaluated = false
+
+[[hypothesis]]
+id = "H2"
+label = 'H2 (UUP weight MDP ≥ GMV)'
+kind = "count"
+statistic = "w_UUP(MDP) ≥ w_UUP(GMV) at the 208 rebalances, and the UUP corner at 2022-12-31"
+direction = ">"
+rule_text = 'holds on > 50% of rebalances, and the UUP corner persists at 2022-12-31; test window count reported separately'
+evaluated = false
+
+[[hypothesis]]
+id = "H3"
+label = 'H3 (MDP − GMV null)'
+kind = "null"
+statistic = "t of the paired daily difference MDP − GMV, full and test"
+rule_text = '|t| < 2 on full and test; β decomposition reported'
+evaluated = false
+
+[[hypothesis]]
+id = "H4"
+label = 'H4 (MDP − EW < 0, beta-driven)'
+kind = "directional_t"
+statistic = "paired daily difference MDP − EW: full-window t, test-window mean, |Δβ part| vs |Δα|, Δα t"
+direction = "<"
+beta_condition = true
+allow_not_robust = true
+rule_text = 'MDP − EW < 0, with |Δβ part| > |Δα| and Δα |t| < 2; supported only if full-window t ≤ −2 AND the test-window mean is also negative; a pass on the full window only is "not robust"'
+evaluated = false
+
+[[hypothesis]]
+id = "H5_LW"
+label = 'H5 (MDP(LW) − MDP(S) null)'
+kind = "null"
+statistic = "t of the paired daily difference MDP(LW) − MDP(S), full and test"
+rule_text = '|t| < 2, full and test'
+evaluated = false
+
+[[hypothesis]]
+id = "H5_IV"
+label = 'H5 (MDP − IV Δα null)'
+kind = "null"
+statistic = "t of Δα, MDP − IV"
+rule_text = '|t| < 2'
+evaluated = false

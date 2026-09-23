@@ -1,0 +1,48 @@
+notebook = "notebooks/04_covariance_shrinkage.ipynb"
+provenance = "transcribed from notebook §6 at commit 210adef"
+text = '''
+## §6 Pre-registered hypotheses
+
+Registered **before** any backtest cell runs below.
+
+- **H1 (GMV):** GMV(LW) − GMV(sample) mean net return $\ge 0$ — shrinkage
+  should help a risk-only estimator.
+- **H2 (MaxSharpe):** MaxSharpe(LW) − MaxSharpe(sample) mean net return
+  $\le 0$ — mixed-to-negative for a mean-variance objective with an
+  unshrunk alpha, per the literature.
+- **BL(0.1): predicted null.** Snapshot ½L1 vs sample is only
+  ≈1.5–2.2% (§4/§5c) — the EW prior dominates the objective, so LW − sample
+  should be indistinguishable from zero.
+
+**Test:** paired daily difference (LW-run net − sample-run net), annualized
+mean, tracking error (TE), $t = \mathrm{mean}/\mathrm{sd}\cdot\sqrt{n}$. A
+result counts only at $|t| \ge 2$; the default expectation for all three is
+a null. H1 is read only together with the §9 $\beta$ decomposition — a
+mean-return difference driven entirely by a $\beta$ shift is not the same
+finding as one driven by lower estimation-risk alpha.'''
+
+[[hypothesis]]
+id = "H1"
+label = 'H1 (GMV(LW) − GMV(sample) mean net return ≥ 0)'
+kind = "directional_t"
+statistic = "paired daily difference GMV(LW) − GMV(sample): annualized mean, TE, t"
+direction = ">"
+rule_text = 'mean net return difference ≥ 0; counts only at |t| ≥ 2; read only together with the §9 β decomposition'
+evaluated = false
+
+[[hypothesis]]
+id = "H2"
+label = 'H2 (MaxSharpe(LW) − MaxSharpe(sample) mean net return ≤ 0)'
+kind = "directional_t"
+statistic = "paired daily difference MaxSharpe(LW) − MaxSharpe(sample): annualized mean, TE, t"
+direction = "<"
+rule_text = 'mean net return difference ≤ 0; counts only at |t| ≥ 2'
+evaluated = false
+
+[[hypothesis]]
+id = "BL"
+label = 'BL(0.1) (LW − sample predicted null)'
+kind = "null"
+statistic = "paired daily difference BL(0.1)(LW) − BL(0.1)(sample): t"
+rule_text = 'predicted null: LW − sample indistinguishable from zero; counts only at |t| ≥ 2'
+evaluated = false

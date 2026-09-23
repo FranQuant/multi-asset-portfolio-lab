@@ -1,0 +1,32 @@
+# Canonical round(Sharpe, 2) per window, as asserted by the reproduction
+# gates of notebooks 04-07 (full / train (<= split) / test (> split)).
+
+[GMV_sample]
+full = 0.62
+train = 0.59
+test = 0.76
+
+[MaxSharpe_sample]
+full = 0.72
+train = 0.60
+test = 1.13
+
+[EW]
+full = 0.74
+train = 0.70
+test = 0.91
+
+["BL_k0.1_sample"]
+full = 0.64
+train = 0.62
+test = 0.70
+
+[MDP_sample]
+full = 0.76
+train = 0.70
+test = 0.98
+
+[ERC_sample]
+full = 0.76
+train = 0.73
+test = 0.94

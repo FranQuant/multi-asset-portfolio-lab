@@ -999,3 +999,44 @@ def test_hrp_labels():
     assert HierarchicalRiskParity(bisection="positional").label == "HRP[positional](sample)"
     assert HierarchicalRiskParity(linkage="ward").label == "HRP[ward](sample)"
     assert HierarchicalRiskParity(dist_of_dist=False).label == "HRP[direct](sample)"
+
+
+# ── n. InverseVol / InverseVariance ───────────────────────────────────────
+
+from maplab.models import InverseVol, InverseVariance  # noqa: E402
+
+
+def test_inverse_vol_and_inverse_variance_weights():
+    panel, log_returns = make_panel(seed=60)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+    var = np.diag(Sigma.to_numpy())
+    sigma = np.sqrt(var)
+
+    w_iv = InverseVol()(panel, asof)
+    expected_iv = (1.0 / sigma) / np.sum(1.0 / sigma)
+    assert list(w_iv.index) == UNIVERSE
+    assert np.max(np.abs(w_iv.to_numpy() - expected_iv)) <= 1e-12
+
+    w_ivp = InverseVariance()(panel, asof)
+    expected_ivp = (1.0 / var) / np.sum(1.0 / var)
+    assert list(w_ivp.index) == UNIVERSE
+    assert np.max(np.abs(w_ivp.to_numpy() - expected_ivp)) <= 1e-12
+
+
+def test_inverse_variance_equals_hrp_on_diagonal_sigma():
+    panel, log_returns = make_panel(seed=61)
+    asof = log_returns.index[COV_LOOKBACK]
+    _, Sigma = GMV()._estimate(panel, asof)
+    Sigma_diag = pd.DataFrame(np.diag(np.diag(Sigma.to_numpy())), index=Sigma.index, columns=Sigma.columns)
+    w_hrp, _ = _hrp_long_only(Sigma_diag, "test", asof)
+
+    w_ivp = InverseVariance()(panel, asof)
+    assert np.max(np.abs(w_ivp.to_numpy() - w_hrp)) <= 1e-12
+
+
+def test_inverse_vol_inverse_variance_labels():
+    assert InverseVol().label == "IV(sample)"
+    assert InverseVariance().label == "IVP(sample)"
+    assert InverseVol.family in ml.FAMILY_COLORS
+    assert InverseVariance.family in ml.FAMILY_COLORS

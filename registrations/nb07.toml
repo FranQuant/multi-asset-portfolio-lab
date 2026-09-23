@@ -1,0 +1,168 @@
+notebook = "notebooks/07_hierarchical_risk_parity.ipynb"
+provenance = "transcribed from notebook §2 at commit 210adef"
+text = '''
+## §2 Pre-registration (written before any backtest output)
+
+**Registered:** HRP(sample) = tree-following bisection, single linkage, distance of distances, inverse variance within clusters. **Reproduction gate:** GMV(sample), EW, MDP(sample), ERC(sample). **Sensitivities:** HRP(ledoit_wolf); HRP&#91;positional&#93;(sample), the literature's equal-halves bisection; HRP&#91;ward&#93;(sample), selected by the pre-set recipe rule. **Reference:** IVP (inverse variance, notebook-local) = HRP on diag(Σ).
+
+**Windows:** full / train (&lt;= 2022-12-31) / test (2023+). Paired test = daily return difference, t = mean/sd·√n, plain OLS, no HAC; counts only at &#124;t&#124; &gt;= 2. Count-based hypotheses use target weights at the 208 rebalances (40 in test).
+
+Directions for H1a, H2b and H3 were fixed by a read-only snapshot check at 2014-12-31 / 2017-12-31 / 2022-12-31, run before this notebook on sample-covariance solutions at those three dates only (pre-set rule: a direction is registered only if it holds at 3/3 dates). H7's direction is fixed a priori by theory, not by the snapshot.
+
+**Count rule** (H1a, H2b, H3): SUPPORTED iff the inequality holds at 2022-12-31 AND on more than 50% of the 208 rebalances AND on more than 50% of the 40 test rebalances. If it holds at 2022-12-31 and on more than 50% of the 208 but not on more than 50% of the test rebalances: NOT ROBUST. Otherwise: NOT SUPPORTED.
+
+**H1a (UUP corner):** w_UUP(HRP) &lt; w_UUP(GMV) AND w_UUP(HRP) &lt; w_UUP(MDP), jointly. **H1b:** HRP vs ERC was mixed at the snapshot, so no direction is registered; the count is descriptive.
+
+**H2a (descriptive):** number of rebalances at which UUP is a root singleton (alone on one side of the final merge). **H2b (correlation blindness):** with Σ_cf = Σ with UUP's correlations set to 0, &#124;w_UUP(Σ) − w_UUP(Σ_cf)&#124; for HRP &lt; the same quantity for GMV, for MDP and for ERC, each comparator judged separately by the count rule. Whenever UUP is a root singleton under both Σ and Σ_cf, HRP's difference is exactly 0 by construction; that count is reported next to H2b and is its empirical content.
+
+**H3 (effN):** effN(HRP) &gt; effN(GMV); effN(HRP) &gt; effN(MDP); effN(HRP) &lt; effN(ERC), each judged separately by the count rule.
+
+**H4 (nulls):** HRP − GMV, HRP − MDP, HRP − ERC: Δα from the direct diff-regression, &#124;t&#124; &lt; 2. Total paired differences are reported with the β decomposition and carry no directional claim — the methods differ in ex-ante vol on the same Σ.
+
+**H5 (HRP − EW &lt; 0, beta-driven):** SUPPORTED iff the full-window paired t &lt;= −2 AND the test-window mean &lt; 0 AND &#124;Δβ part&#124; &gt; &#124;Δα&#124;.
+
+**H6 (sensitivity nulls):** HRP(LW) − HRP(S): total paired difference, &#124;t&#124; &lt; 2 on full AND test. HRP − IVP, HRP[positional] − HRP, HRP[ward] − HRP: Δα, &#124;t&#124; &lt; 2.
+
+**H7 (forecast bias vs GMV):** q = log(realized holding-segment vol / ex-ante √(w′Σw)) at each rebalance. mean(q_HRP − q_GMV) &lt; 0: SUPPORTED iff t &lt;= −2 over the full-window segments AND the test-window mean &lt; 0; full-window t &lt;= −2 alone = NOT ROBUST. Rationale: GMV's weights minimize in-sample variance, so its ex-ante vol is biased low; HRP optimizes nothing. MDP, ERC, IVP and EW biases are descriptive.
+
+**Wording:** a null with 1.5 &lt;= &#124;t&#124; &lt; 2 holds "narrowly".
+
+**Honest limitations:** the snapshot dates are in-sample (2022-12-31 is inside the train window and is backtested here); H2b is partly mechanical (see above); at the snapshot the recipe was not robust to the linkage choice (average / ward / direct moved weights by 7–17% half-L1), and only ward is backtested.'''
+
+[[hypothesis]]
+id = "H1a"
+label = 'H1a (w_UUP HRP<GMV and <MDP)'
+kind = "count"
+statistic = "w_UUP(HRP) < w_UUP(GMV) AND w_UUP(HRP) < w_UUP(MDP), target weights at the 208 rebalances"
+direction = "<"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H1b"
+label = 'H1b (descriptive, HRP<ERC)'
+kind = "descriptive"
+statistic = "count of w_UUP(HRP) < w_UUP(ERC) at the 208 rebalances"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "H2a"
+label = 'H2a (descriptive, UUP root singleton)'
+kind = "descriptive"
+statistic = "rebalances at which UUP is a root singleton"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "H2b_GMV"
+label = 'H2b (|dw_UUP_cf| HRP < GMV)'
+kind = "count"
+statistic = "|w_UUP(Sigma) - w_UUP(Sigma_cf)|, HRP vs GMV"
+direction = "<"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H2b_MDP"
+label = 'H2b (|dw_UUP_cf| HRP < MDP)'
+kind = "count"
+statistic = "|w_UUP(Sigma) - w_UUP(Sigma_cf)|, HRP vs MDP"
+direction = "<"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H2b_ERC"
+label = 'H2b (|dw_UUP_cf| HRP < ERC)'
+kind = "count"
+statistic = "|w_UUP(Sigma) - w_UUP(Sigma_cf)|, HRP vs ERC"
+direction = "<"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H3_GMV"
+label = 'H3 (effN HRP vs GMV)'
+kind = "count"
+statistic = "effN(HRP) > effN(GMV)"
+direction = ">"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H3_MDP"
+label = 'H3 (effN HRP vs MDP)'
+kind = "count"
+statistic = "effN(HRP) > effN(MDP)"
+direction = ">"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H3_ERC"
+label = 'H3 (effN HRP vs ERC)'
+kind = "count"
+statistic = "effN(HRP) < effN(ERC)"
+direction = "<"
+rule_text = 'count rule'
+
+[[hypothesis]]
+id = "H4_GMV"
+label = 'H4 (Delta-alpha, HRP(S)-GMV(S))'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP(S) - GMV(S)"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H4_MDP"
+label = 'H4 (Delta-alpha, HRP(S)-MDP(S))'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP(S) - MDP(S)"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H4_ERC"
+label = 'H4 (Delta-alpha, HRP(S)-ERC(S))'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP(S) - ERC(S)"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H5"
+label = 'H5 (HRP-EW < 0, beta-driven)'
+kind = "directional_t"
+statistic = "paired daily difference HRP(S) - EW: full-window t, test-window mean, |beta_part| vs |d_alpha|"
+direction = "<"
+beta_condition = true
+allow_not_robust = false
+rule_text = 'H5 rule'
+
+[[hypothesis]]
+id = "H6_LW"
+label = 'H6 (HRP(LW)-HRP(S), total)'
+kind = "null"
+statistic = "t of the total paired difference HRP(LW) - HRP(S), full and test"
+rule_text = '|t|<2 null (larger of full/test)'
+
+[[hypothesis]]
+id = "H6_IVP"
+label = 'H6 (Delta-alpha, HRP(S)-IVP)'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP(S) - IVP"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H6_pos"
+label = 'H6 (Delta-alpha, HRP[pos](S)-HRP(S))'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP[pos](S) - HRP(S)"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H6_ward"
+label = 'H6 (Delta-alpha, HRP[ward](S)-HRP(S))'
+kind = "null"
+statistic = "t of Delta-alpha, direct diff-regression HRP[ward](S) - HRP(S)"
+rule_text = '|t|<2 null'
+
+[[hypothesis]]
+id = "H7"
+label = 'H7 (forecast bias, q_HRP-q_GMV < 0)'
+kind = "directional_t"
+statistic = "mean(q_HRP - q_GMV), q = log(realized segment vol / ex-ante vol): full-window t, test-window mean"
+direction = "<"
+allow_not_robust = true
+rule_text = 'H7 rule'
