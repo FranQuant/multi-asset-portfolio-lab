@@ -179,6 +179,145 @@ def _mdp_long_only(Sigma: pd.DataFrame, label: str, asof, on_retry=None) -> tupl
     return _tangency_long_only(sigma, Sigma.to_numpy(), label, asof, on_retry=on_retry)
 
 
+def _erc_long_only(Sigma: pd.DataFrame, label: str, asof, tol: float = 1e-12,
+                    maxiter: int = 1000) -> tuple[np.ndarray, int]:
+    """Long-only equal-risk-contribution (ERC) portfolio: w_i (Sigma w)_i equal for
+    all i, 1'w = 1, w > 0. Solved via the strictly convex surrogate
+        min_{y>0}  0.5 y'Sigma y - (1/N) sum_i log y_i,      w = y / 1'y,
+    whose stationarity condition y_i (Sigma y)_i = 1/N gives equal risk
+    contributions exactly; the log barrier makes w > 0 automatic, so unlike the
+    tangency/MDP QPs there is no boundary case and no fallback. The solution is
+    unique. Cyclical coordinate descent: with c_i = sum_{j != i} Sigma_ij y_j,
+    each coordinate solves Sigma_ii y_i^2 + c_i y_i - 1/N = 0, taking the
+    positive root. Identities: risk weights x = w*sigma/(w'sigma) equal ERC run
+    on the correlation matrix C = D^-1 Sigma D^-1; w_i * beta_i,p = 1/N where
+    beta_i,p = (Sigma w)_i / w'Sigma w. Special cases: constant correlation =>
+    inverse vol (any N); N = 2 => inverse vol for any rho. Scale equivariance:
+    w(K Sigma K) is proportional to K^-1 w(Sigma).
+    """
+    Sigma_np = Sigma.to_numpy()
+    n = Sigma_np.shape[0]
+    diag = np.diag(Sigma_np)
+    if (diag <= 0).any():
+        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
+
+    b = 1.0 / n
+    sigma = np.sqrt(diag)
+    y = (1.0 / sigma) / np.sum(1.0 / sigma)
+
+    dev = np.inf
+    for sweep in range(1, maxiter + 1):
+        for i in range(n):
+            c = Sigma_np[i] @ y - Sigma_np[i, i] * y[i]
+            y[i] = (-c + np.sqrt(c * c + 4.0 * Sigma_np[i, i] * b)) / (2.0 * Sigma_np[i, i])
+        dev = np.max(np.abs(y * (Sigma_np @ y) - b))
+        if dev <= tol:
+            w = y / y.sum()
+            return w, sweep
+
+    raise RuntimeError(
+        f"{label}: ERC coordinate descent failed to converge at asof={asof} "
+        f"after {maxiter} sweeps (max|y_i(Sy)_i - 1/N| = {dev:.3e})"
+    )
+
+
+_HRP_LINKAGES = ("single", "average", "ward")
+_HRP_BISECTIONS = ("tree", "positional")
+
+
+def _hrp_cluster_var(Sigma_np: np.ndarray, idx) -> float:
+    """Variance of the inverse-variance (IVP) portfolio on the sub-block idx."""
+    idx = list(idx)
+    sub = Sigma_np[np.ix_(idx, idx)]
+    p = 1.0 / np.diag(sub)
+    p = p / p.sum()
+    return float(p @ sub @ p)
+
+
+def _hrp_long_only(Sigma: pd.DataFrame, label: str, asof, linkage: str = "single",
+                   bisection: str = "tree", dist_of_dist: bool = True) -> tuple[np.ndarray, dict]:
+    """Long-only hierarchical risk parity (HRP). Closed-form arithmetic, no solver.
+
+    Recipe: C = D^-1 Sigma D^-1 (clipped to [-1, 1], unit diagonal);
+    d_ij = sqrt((1 - rho_ij) / 2); if dist_of_dist, cluster on the Euclidean
+    distance between columns of d (the literature's recipe), else on d directly;
+    hierarchical linkage (single / average / ward); then recursive bisection.
+    At every split, capital goes to the two sides in inverse proportion to the
+    variance of each side's inverse-variance portfolio:
+        alpha_L = V_R / (V_L + V_R).
+    bisection="tree" splits at each dendrogram node (a function of Sigma up to
+    linkage ties, permutation-equivariant). bisection="positional" splits the
+    leaf order into halves at floor(n/2), as in the literature's original
+    algorithm; its weights depend on the leaf orientation and therefore on the
+    input column order.
+
+    Only the diagonal blocks Sigma_LL, Sigma_RR enter an allocation; the cross
+    block Sigma_LR never does - it only shapes the tree. Identities: diagonal
+    Sigma (C = I) => inverse-variance weights for any tree and either bisection
+    (= long-only GMV); N = 2 => inverse variance for any rho; uniform scaling
+    c*Sigma leaves weights unchanged. Every weight is strictly positive.
+
+    Returns (w, info) with info = {"order", "Z", "splits"}; splits is a list of
+    (left_indices, right_indices, alpha_left).
+    """
+    if linkage not in _HRP_LINKAGES:
+        raise ValueError(f"{label}: unknown linkage {linkage!r}; expected one of {_HRP_LINKAGES}")
+    if bisection not in _HRP_BISECTIONS:
+        raise ValueError(f"{label}: unknown bisection {bisection!r}; expected one of {_HRP_BISECTIONS}")
+    Sigma_np = Sigma.to_numpy(dtype=float)
+    n = Sigma_np.shape[0]
+    if n < 2:
+        raise ValueError(f"{label}: HRP needs at least 2 assets, got {n} at asof={asof}")
+    diag = np.diag(Sigma_np)
+    if (diag <= 0).any():
+        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
+
+    sigma = np.sqrt(diag)
+    C = Sigma_np / np.outer(sigma, sigma)
+    C = 0.5 * (C + C.T)
+    C = np.clip(C, -1.0, 1.0)
+    np.fill_diagonal(C, 1.0)
+    D = np.sqrt(0.5 * (1.0 - C))
+    np.fill_diagonal(D, 0.0)
+    y = pdist(D, metric="euclidean") if dist_of_dist else squareform(D, checks=True)
+    Z = sch.linkage(y, method=linkage)
+    order = sch.leaves_list(Z)
+
+    w = np.ones(n)
+    splits = []
+    if bisection == "tree":
+        stack = [sch.to_tree(Z)]
+        while stack:
+            node = stack.pop()
+            if node.is_leaf():
+                continue
+            left, right = node.get_left(), node.get_right()
+            L, R = left.pre_order(), right.pre_order()
+            v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
+            a = 1.0 - v_l / (v_l + v_r)
+            w[L] *= a
+            w[R] *= 1.0 - a
+            splits.append((L, R, a))
+            stack += [left, right]
+    else:
+        items = [list(order)]
+        while items:
+            nxt = []
+            for it in items:
+                if len(it) <= 1:
+                    continue
+                h = len(it) // 2
+                L, R = it[:h], it[h:]
+                v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
+                a = 1.0 - v_l / (v_l + v_r)
+                w[L] *= a
+                w[R] *= 1.0 - a
+                splits.append((L, R, a))
+                nxt += [L, R]
+            items = nxt
+    return w, {"order": order, "Z": Z, "splits": splits}
+
+
 class GMV(Strategy):
     """Long-only global minimum-variance portfolio."""
 
@@ -548,48 +687,6 @@ class MostDiversified(Strategy):
         return pd.Series(w, index=Sigma.columns)
 
 
-def _erc_long_only(Sigma: pd.DataFrame, label: str, asof, tol: float = 1e-12,
-                    maxiter: int = 1000) -> tuple[np.ndarray, int]:
-    """Long-only equal-risk-contribution (ERC) portfolio: w_i (Sigma w)_i equal for
-    all i, 1'w = 1, w > 0. Solved via the strictly convex surrogate
-        min_{y>0}  0.5 y'Sigma y - (1/N) sum_i log y_i,      w = y / 1'y,
-    whose stationarity condition y_i (Sigma y)_i = 1/N gives equal risk
-    contributions exactly; the log barrier makes w > 0 automatic, so unlike the
-    tangency/MDP QPs there is no boundary case and no fallback. The solution is
-    unique. Cyclical coordinate descent: with c_i = sum_{j != i} Sigma_ij y_j,
-    each coordinate solves Sigma_ii y_i^2 + c_i y_i - 1/N = 0, taking the
-    positive root. Identities: risk weights x = w*sigma/(w'sigma) equal ERC run
-    on the correlation matrix C = D^-1 Sigma D^-1; w_i * beta_i,p = 1/N where
-    beta_i,p = (Sigma w)_i / w'Sigma w. Special cases: constant correlation =>
-    inverse vol (any N); N = 2 => inverse vol for any rho. Scale equivariance:
-    w(K Sigma K) is proportional to K^-1 w(Sigma).
-    """
-    Sigma_np = Sigma.to_numpy()
-    n = Sigma_np.shape[0]
-    diag = np.diag(Sigma_np)
-    if (diag <= 0).any():
-        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
-
-    b = 1.0 / n
-    sigma = np.sqrt(diag)
-    y = (1.0 / sigma) / np.sum(1.0 / sigma)
-
-    dev = np.inf
-    for sweep in range(1, maxiter + 1):
-        for i in range(n):
-            c = Sigma_np[i] @ y - Sigma_np[i, i] * y[i]
-            y[i] = (-c + np.sqrt(c * c + 4.0 * Sigma_np[i, i] * b)) / (2.0 * Sigma_np[i, i])
-        dev = np.max(np.abs(y * (Sigma_np @ y) - b))
-        if dev <= tol:
-            w = y / y.sum()
-            return w, sweep
-
-    raise RuntimeError(
-        f"{label}: ERC coordinate descent failed to converge at asof={asof} "
-        f"after {maxiter} sweeps (max|y_i(Sy)_i - 1/N| = {dev:.3e})"
-    )
-
-
 class EqualRiskContribution(Strategy):
     """Long-only equal risk contribution (ERC) portfolio."""
 
@@ -606,103 +703,6 @@ class EqualRiskContribution(Strategy):
         w, n_sweeps = _erc_long_only(Sigma, self.label, asof)
         self.sweeps.append(n_sweeps)
         return pd.Series(w, index=Sigma.columns)
-
-
-_HRP_LINKAGES = ("single", "average", "ward")
-_HRP_BISECTIONS = ("tree", "positional")
-
-
-def _hrp_cluster_var(Sigma_np: np.ndarray, idx) -> float:
-    """Variance of the inverse-variance (IVP) portfolio on the sub-block idx."""
-    idx = list(idx)
-    sub = Sigma_np[np.ix_(idx, idx)]
-    p = 1.0 / np.diag(sub)
-    p = p / p.sum()
-    return float(p @ sub @ p)
-
-
-def _hrp_long_only(Sigma: pd.DataFrame, label: str, asof, linkage: str = "single",
-                   bisection: str = "tree", dist_of_dist: bool = True) -> tuple[np.ndarray, dict]:
-    """Long-only hierarchical risk parity (HRP). Closed-form arithmetic, no solver.
-
-    Recipe: C = D^-1 Sigma D^-1 (clipped to [-1, 1], unit diagonal);
-    d_ij = sqrt((1 - rho_ij) / 2); if dist_of_dist, cluster on the Euclidean
-    distance between columns of d (the literature's recipe), else on d directly;
-    hierarchical linkage (single / average / ward); then recursive bisection.
-    At every split, capital goes to the two sides in inverse proportion to the
-    variance of each side's inverse-variance portfolio:
-        alpha_L = V_R / (V_L + V_R).
-    bisection="tree" splits at each dendrogram node (a function of Sigma up to
-    linkage ties, permutation-equivariant). bisection="positional" splits the
-    leaf order into halves at floor(n/2), as in the literature's original
-    algorithm; its weights depend on the leaf orientation and therefore on the
-    input column order.
-
-    Only the diagonal blocks Sigma_LL, Sigma_RR enter an allocation; the cross
-    block Sigma_LR never does - it only shapes the tree. Identities: diagonal
-    Sigma (C = I) => inverse-variance weights for any tree and either bisection
-    (= long-only GMV); N = 2 => inverse variance for any rho; uniform scaling
-    c*Sigma leaves weights unchanged. Every weight is strictly positive.
-
-    Returns (w, info) with info = {"order", "Z", "splits"}; splits is a list of
-    (left_indices, right_indices, alpha_left).
-    """
-    if linkage not in _HRP_LINKAGES:
-        raise ValueError(f"{label}: unknown linkage {linkage!r}; expected one of {_HRP_LINKAGES}")
-    if bisection not in _HRP_BISECTIONS:
-        raise ValueError(f"{label}: unknown bisection {bisection!r}; expected one of {_HRP_BISECTIONS}")
-    Sigma_np = Sigma.to_numpy(dtype=float)
-    n = Sigma_np.shape[0]
-    if n < 2:
-        raise ValueError(f"{label}: HRP needs at least 2 assets, got {n} at asof={asof}")
-    diag = np.diag(Sigma_np)
-    if (diag <= 0).any():
-        raise ValueError(f"{label}: non-positive diagonal in Sigma at asof={asof}")
-
-    sigma = np.sqrt(diag)
-    C = Sigma_np / np.outer(sigma, sigma)
-    C = 0.5 * (C + C.T)
-    C = np.clip(C, -1.0, 1.0)
-    np.fill_diagonal(C, 1.0)
-    D = np.sqrt(0.5 * (1.0 - C))
-    np.fill_diagonal(D, 0.0)
-    y = pdist(D, metric="euclidean") if dist_of_dist else squareform(D, checks=True)
-    Z = sch.linkage(y, method=linkage)
-    order = sch.leaves_list(Z)
-
-    w = np.ones(n)
-    splits = []
-    if bisection == "tree":
-        stack = [sch.to_tree(Z)]
-        while stack:
-            node = stack.pop()
-            if node.is_leaf():
-                continue
-            left, right = node.get_left(), node.get_right()
-            L, R = left.pre_order(), right.pre_order()
-            v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
-            a = 1.0 - v_l / (v_l + v_r)
-            w[L] *= a
-            w[R] *= 1.0 - a
-            splits.append((L, R, a))
-            stack += [left, right]
-    else:
-        items = [list(order)]
-        while items:
-            nxt = []
-            for it in items:
-                if len(it) <= 1:
-                    continue
-                h = len(it) // 2
-                L, R = it[:h], it[h:]
-                v_l, v_r = _hrp_cluster_var(Sigma_np, L), _hrp_cluster_var(Sigma_np, R)
-                a = 1.0 - v_l / (v_l + v_r)
-                w[L] *= a
-                w[R] *= 1.0 - a
-                splits.append((L, R, a))
-                nxt += [L, R]
-            items = nxt
-    return w, {"order": order, "Z": Z, "splits": splits}
 
 
 class HierarchicalRiskParity(Strategy):
@@ -763,7 +763,37 @@ class EqualWeight(Strategy):
         return pd.Series(1.0 / n, index=self.universe)
 
 
-# ── Pure teaching functions (unconstrained closed forms) ────────────────────
+class InverseVol(Strategy):
+    """Long-only inverse-vol weights w ∝ 1/σ, σ = sqrt(diag Σ) from the
+    strategy's own covariance estimator (sample by default, as in nb05/nb06)."""
+
+    name = "IV"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        sigma = np.sqrt(np.diag(Sigma.to_numpy()))
+        w = (1.0 / sigma) / np.sum(1.0 / sigma)
+        return pd.Series(w, index=Sigma.columns)
+
+
+class InverseVariance(Strategy):
+    """Long-only inverse-variance weights w ∝ 1/diag(Σ) -- HRP's reference
+    case (HRP on diag(Σ) = IVP). Sample covariance by default, as in nb07."""
+
+    name = "IVP"
+    family = "Risk-based"
+    constraint = LONG_ONLY
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        _, Sigma = self._estimate(panel, asof)
+        diag = np.diag(Sigma.to_numpy())
+        w = (1.0 / diag) / np.sum(1.0 / diag)
+        return pd.Series(w, index=Sigma.columns)
+
+
+# ── Teaching and diagnostic functions (unconstrained closed forms and risk contributions)
 # Not used by any Strategy above (both are long-only, solved numerically);
 # these are for the notebook's exposition and for tests, to show what the
 # unconstrained solutions look like in closed form.
@@ -813,33 +843,3 @@ def risk_contributions(w: pd.Series | np.ndarray, Sigma: pd.DataFrame) -> pd.Ser
         raise ValueError(f"risk_contributions: w'Σw = {var!r} <= 0")
     rc = (w_np * (Sigma_np @ w_np)) / np.sqrt(var)
     return pd.Series(rc, index=Sigma.columns)
-
-
-class InverseVol(Strategy):
-    """Long-only inverse-vol weights w ∝ 1/σ, σ = sqrt(diag Σ) from the
-    strategy's own covariance estimator (sample by default, as in nb05/nb06)."""
-
-    name = "IV"
-    family = "Risk-based"
-    constraint = LONG_ONLY
-
-    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
-        _, Sigma = self._estimate(panel, asof)
-        sigma = np.sqrt(np.diag(Sigma.to_numpy()))
-        w = (1.0 / sigma) / np.sum(1.0 / sigma)
-        return pd.Series(w, index=Sigma.columns)
-
-
-class InverseVariance(Strategy):
-    """Long-only inverse-variance weights w ∝ 1/diag(Σ) -- HRP's reference
-    case (HRP on diag(Σ) = IVP). Sample covariance by default, as in nb07."""
-
-    name = "IVP"
-    family = "Risk-based"
-    constraint = LONG_ONLY
-
-    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
-        _, Sigma = self._estimate(panel, asof)
-        diag = np.diag(Sigma.to_numpy())
-        w = (1.0 / diag) / np.sum(1.0 / diag)
-        return pd.Series(w, index=Sigma.columns)
