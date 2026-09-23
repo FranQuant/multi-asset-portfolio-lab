@@ -68,7 +68,7 @@ kind = "count"
 statistic = "w_UUP(ERC) < w_UUP(GMV) AND w_UUP(ERC) < w_UUP(MDP) at the 208 rebalances; β_UUP,p reported as context"
 direction = "<"
 rule_text = 'both hold at 2022-12-31 AND on > 50% of the 208 rebalances AND on > 50% of the 40 test rebalances'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H2"
@@ -79,7 +79,7 @@ direction = ">"
 rule_text = 'holds on > 50% of the 208 rebalances AND > 50% of the 40 test rebalances'
 rule = "no_2022"
 applied = '> 50% of the 208 AND > 50% of the 40 test rebalances; no 2022-12-31 condition'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H3_GMV"
@@ -87,7 +87,7 @@ label = 'H3 (Δα, ERC − GMV null)'
 kind = "null"
 statistic = "t of Δα, direct diff-regression ERC − GMV"
 rule_text = '|t| < 2; total paired difference reported with the β decomposition, no directional claim'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H3_MDP"
@@ -95,7 +95,7 @@ label = 'H3 (Δα, ERC − MDP null)'
 kind = "null"
 statistic = "t of Δα, direct diff-regression ERC − MDP"
 rule_text = '|t| < 2; total paired difference reported with the β decomposition, no directional claim'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H4"
@@ -106,7 +106,7 @@ direction = "<"
 beta_condition = true
 allow_not_robust = true
 rule_text = 'supported only if the full-window paired t ≤ −2 AND the test-window mean is also negative AND |Δβ part| > |Δα|; a pass on the full window only is "not robust"'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H5_LW"
@@ -114,7 +114,7 @@ label = 'H5 (ERC(LW) − ERC(S) null)'
 kind = "null"
 statistic = "t of the paired daily difference ERC(LW) − ERC(S), full and test"
 rule_text = '|t| < 2, full and test'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H5_IV"
@@ -122,4 +122,4 @@ label = 'H5 (ERC(S) − IV Δα null)'
 kind = "null"
 statistic = "t of Δα, direct diff-regression ERC(S) − IV"
 rule_text = '|t| < 2'
-evaluated = false
+evaluated = true

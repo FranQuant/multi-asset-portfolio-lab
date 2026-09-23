@@ -133,9 +133,8 @@ def mechanism_grid(panel, dates):
     return fig, grid_table
 
 
-def identity_a_panel(panel, asof_2022):
-    """Identity A check at one date: ERC w_i vs 1/(N*beta_i,p). Returns
-    (fig, max|w_i - 1/(N*beta_i,p)|)."""
+def identity_a_maxdev(panel, asof_2022):
+    """Identity A check at one date: max|w_i - 1/(N*beta_i,p)| for ERC."""
     tickers = ml.UNIVERSE
     _, Sigma_2022b = GMV(cov_estimator=ml.sample_cov)._estimate(panel, asof_2022)
     Sigma_2022b = Sigma_2022b.reindex(index=tickers, columns=tickers)
@@ -145,16 +144,7 @@ def identity_a_panel(panel, asof_2022):
     beta_2022b = (Sigma_np_2022b @ w_erc_2022b) / var_2022b
     rhs = 1.0 / (len(tickers) * beta_2022b)
 
-    fig, ax = plt.subplots(figsize=(4.5, 4.5))
-    ax.scatter(rhs, w_erc_2022b, s=30, color=ml.FAMILY_COLORS["Risk-based"])
-    lims = [min(rhs.min(), w_erc_2022b.min()), max(rhs.max(), w_erc_2022b.max())]
-    ax.plot(lims, lims, color="black", ls="--", lw=0.8)
-    ax.set_xlabel("1 / (N * beta_i,p)")
-    ax.set_ylabel("w_i (ERC)")
-    ax.set_title(f"Identity A check, {asof_2022.date()}")
-    plt.tight_layout()
-
-    return fig, float(np.max(np.abs(w_erc_2022b - rhs)))
+    return float(np.max(np.abs(w_erc_2022b - rhs)))
 
 
 def mechanism_checks(panel, rdates):
