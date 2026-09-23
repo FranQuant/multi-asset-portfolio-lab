@@ -152,10 +152,10 @@ def pos_path(Sigma_np, order, i):
     return path
 
 
-def mechanism_grid(snap, dates, info):
+def mechanism_grid(snap, dates):
     """Figure F2: dendrogram / quasi-diagonalized correlation / UUP weight
-    bars, one row per snapshot date. `info` is the tree info whose splits
-    annotate the dendrogram nodes. Returns (fig, [(asof, annotated, n_links)])."""
+    bars, one row per snapshot date. Each row's dendrogram nodes are annotated
+    with that date's own tree splits. Returns (fig, [(asof, annotated, n_links)])."""
     fig, axes = plt.subplots(3, 3, figsize=(17, 13))
     uup_methods = ["IVP", "HRP", "HRP[pos]", "ERC", "GMV", "MDP", "EW"]
     cf_methods = ["HRP", "GMV", "MDP", "ERC"]
@@ -208,7 +208,7 @@ def mechanism_grid(snap, dates, info):
             )
             left_set = set(left_leaves)
             split_shares = None
-            for (L, R, a) in info["splits"]:
+            for (L, R, a) in s["info"]["splits"]:
                 if set(L) == left_set:
                     split_shares = (a, 1.0 - a)
                     break
