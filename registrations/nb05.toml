@@ -40,7 +40,7 @@ direction = "<"
 rule_text = 'holds on > 50% of the 208 rebalances; test window count reported separately'
 rule = "no_2022"
 applied = '> 50% of the 208 AND > 50% of the 40 test rebalances (§2 closing sentence: a full-window-only pass is not robust); no 2022-12-31 condition'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H2"
@@ -51,7 +51,7 @@ direction = ">"
 rule_text = 'holds on > 50% of rebalances, and the UUP corner persists at 2022-12-31; test window count reported separately'
 rule = "standard"
 applied = 'count rule; 2022-12-31 condition = w_UUP(MDP) ≥ w_UUP(GMV) AND UUP is the largest MDP(S) weight; test > 50% per §2 closing sentence'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H3"
@@ -59,7 +59,7 @@ label = 'H3 (MDP − GMV null)'
 kind = "null"
 statistic = "t of the paired daily difference MDP − GMV, full and test"
 rule_text = '|t| < 2 on full and test; β decomposition reported'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H4"
@@ -71,7 +71,7 @@ beta_condition = true
 allow_not_robust = true
 rule_text = 'MDP − EW < 0, with |Δβ part| > |Δα| and Δα |t| < 2; supported only if full-window t ≤ −2 AND the test-window mean is also negative; a pass on the full window only is "not robust"'
 alpha_null = true
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H5_LW"
@@ -79,7 +79,7 @@ label = 'H5 (MDP(LW) − MDP(S) null)'
 kind = "null"
 statistic = "t of the paired daily difference MDP(LW) − MDP(S), full and test"
 rule_text = '|t| < 2, full and test'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H5_IV"
@@ -87,4 +87,4 @@ label = 'H5 (MDP − IV Δα null)'
 kind = "null"
 statistic = "t of Δα, MDP − IV"
 rule_text = '|t| < 2'
-evaluated = false
+evaluated = true

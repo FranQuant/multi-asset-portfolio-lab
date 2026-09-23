@@ -2,6 +2,7 @@
 
 Each function returns DataFrames/values; notebook 05 prints and asserts them.
 """
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -97,3 +98,31 @@ def snapshot_tables(panel, results, dates):
     snapshot_metrics = pd.DataFrame(snapshot_rows).set_index(["asof", "strategy"])
     uup_table = pd.DataFrame(uup_rows).set_index("asof")
     return weight_tables, snapshot_metrics, uup_table
+
+
+def vol_corr_figure(panel, results, asof):
+    """§7d: annualized vol vs mean pairwise correlation with the other assets
+    at `asof` (sample Σ, same window as uup_mean_corr); marker area ∝ MDP(S)
+    weight, hollow = zero weight, UUP highlighted."""
+    _, Sigma = GMV(cov_estimator=ml.sample_cov)._estimate(panel, asof)
+    vol = pd.Series(np.sqrt(np.diag(Sigma.to_numpy())), index=Sigma.columns)
+    rets_win = panel.slice(asof, "returns", ml.COV_LOOKBACK)[ml.UNIVERSE]
+    corr = rets_win.corr()
+    mean_corr = pd.Series({t: float(corr[t].drop(t).mean()) for t in Sigma.columns})
+    w_mdp = results["MDP(S)"]["wlog"].loc[asof].reindex(Sigma.columns)
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    ax.axhline(0, color="black", ls="--", lw=0.8)
+    for t in Sigma.columns:
+        color = "#c0392b" if t == "UUP" else "#555555"
+        w = float(w_mdp[t])
+        filled = w > 1e-8
+        ax.scatter(vol[t], mean_corr[t], s=30 + 1500 * w, edgecolors=color,
+                   facecolors=color if filled else "none", alpha=0.7 if filled else 1.0, lw=1.2, zorder=3)
+        ax.annotate(t, (vol[t], mean_corr[t]), xytext=(5, 5), textcoords="offset points", fontsize=8,
+                    color=color, fontweight="bold" if t == "UUP" else "normal")
+    ax.set_xlabel("annualized volatility (sample Σ)")
+    ax.set_ylabel("mean pairwise correlation with the other 12")
+    ax.set_title(f"{asof.date()}: vol vs mean correlation; marker area = MDP(S) weight (hollow = 0)")
+    fig.tight_layout()
+    return fig
