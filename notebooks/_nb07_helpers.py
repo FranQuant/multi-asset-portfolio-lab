@@ -257,30 +257,6 @@ def mechanism_grid(snap, dates):
     return fig, annotated_counts
 
 
-def split_identity_figure(snap, dates):
-    """Split identity check: mass ratio vs V_R/(V_L+V_R), every node, every snapshot date."""
-    fig, ax = plt.subplots(figsize=(5, 5))
-    for asof in dates:
-        s = snap[asof]
-        Sigma_np = s["Sigma_np"]
-        mass_ratios, alphas = [], []
-        for L, R, a in s["info"]["splits"]:
-            vL, vR = ivp_var_independent(Sigma_np, L), ivp_var_independent(Sigma_np, R)
-            alpha_expected = vR / (vL + vR)
-            w = s["W"]["HRP"]
-            mass_L, mass_R = w[list(L)].sum(), w[list(R)].sum()
-            mass_ratios.append(mass_L / (mass_L + mass_R))
-            alphas.append(alpha_expected)
-        ax.scatter(alphas, mass_ratios, s=18, alpha=0.7, label=str(asof.date()))
-    ax.plot([0, 1], [0, 1], color="black", ls="--", lw=0.8)
-    ax.set_xlabel("V_R / (V_L + V_R)")
-    ax.set_ylabel("mass ratio sum(w_L) / (sum(w_L)+sum(w_R))")
-    ax.set_title("Split identity check (every node, every snapshot date)")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    return fig
-
-
 def quasi_diag_check(Z):
     n = Z.shape[0] + 1
     order = [int(Z[-1, 0]), int(Z[-1, 1])]
