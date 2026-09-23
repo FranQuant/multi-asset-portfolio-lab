@@ -127,16 +127,57 @@ def active_return_table(results, summary_table, split_ts):
     return pd.DataFrame(active_rows).set_index(["strategy", "window"]), active_series
 
 
-def cumulative_active_figure(active_series, split_ts):
-    """§7 figure: BL(k) - EW cumulative active return."""
-    fig, ax = plt.subplots(figsize=(9.5, 4.5))
-    for name, color in [("BL(0.1)", ml.FAMILY_COLORS[BlackLitterman.family]), ("BL(0.2)", "#c0392b")]:
-        cum_active = active_series[name].cumsum()
-        ax.plot(cum_active.index, cum_active.to_numpy() * 100, label=name, color=color, lw=1.3)
-    ax.axhline(0, color="#cccccc", lw=0.8)
-    ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
-    ax.set_ylabel("cumulative active return vs EW (%, simple sum of daily active returns)")
-    ax.set_title("BL(k) − EW cumulative active return")
+def prior_posterior_figure(panel, asof):
+    """Method figure: EW-implied prior Pi vs posterior mu_BL for k=0.1 and
+    k=0.2 at `asof`, from BlackLitterman.posterior (in %)."""
+    post01 = BlackLitterman(k=0.1).posterior(panel, asof)
+    post02 = BlackLitterman(k=0.2).posterior(panel, asof)
+    tickers = list(post01["pi"].index)
+    x = np.arange(len(tickers))
+    series = [
+        ("Π (EW-implied prior)", post01["pi"], "#999999"),
+        ("μ_BL (k=0.1)", post01["mu_bl"], ml.FAMILY_COLORS[BlackLitterman.family]),
+        ("μ_BL (k=0.2)", post02["mu_bl"], "#c0392b"),
+    ]
+
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    for j, (label, s, color) in enumerate(series):
+        ax.bar(x + (j - 1) * 0.27, 100 * s.reindex(tickers).to_numpy(), width=0.27, color=color, label=label)
+    ax.axhline(0, color="black", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(tickers, rotation=90)
+    for lbl in ax.get_xticklabels():
+        if lbl.get_text() in ("UUP", "DBC"):
+            lbl.set_color("#c0392b")
+            lbl.set_fontweight("bold")
+    ax.set_ylabel("annualized expected return (%)")
+    ax.set_title(f"Prior Π vs posterior μ_BL, {asof.date()}")
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+    return fig
+
+
+def ew_vs_bl_weights(wtab):
+    """Method figure: EW (1/N) vs BL long-only weights per k at the
+    snapshot, from k_sensitivity's wtab (in %)."""
+    tickers = list(wtab.index)
+    n = len(tickers)
+    x = np.arange(n)
+    series = [("EW (1/13)", pd.Series(1.0 / n, index=tickers), "#999999"),
+              ("BL(0.1)", wtab["k=0.1"], ml.FAMILY_COLORS[BlackLitterman.family]),
+              ("BL(0.2)", wtab["k=0.2"], "#c0392b")]
+    if "k=0.4" in wtab.columns:
+        series.append(("k=0.4, snapshot only", wtab["k=0.4"], "#555555"))
+    width = 0.8 / len(series)
+
+    fig, ax = plt.subplots(figsize=(10, 4.5))
+    for j, (label, w, color) in enumerate(series):
+        ax.bar(x + (j - (len(series) - 1) / 2) * width, 100 * w.to_numpy(), width=width, color=color, label=label)
+    ax.axhline(100.0 / n, color="black", ls="--", lw=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(tickers, rotation=90)
+    ax.set_ylabel("long-only weight (%)")
+    ax.set_title("EW vs BL weights, 2022-12-31")
     ax.legend(fontsize=8)
     plt.tight_layout()
     return fig
