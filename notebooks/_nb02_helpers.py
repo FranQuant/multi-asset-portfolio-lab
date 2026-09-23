@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import scipy.optimize as opt
 
 import maplab as ml
-from maplab import GMV, MaxSharpe, BetaTargetMinVar
 
 
 def factor_betas(returns_df: pd.DataFrame, fac_df: pd.DataFrame) -> pd.DataFrame:
@@ -194,21 +193,6 @@ def design_d3(log_returns, excess, factors3, asof_dates):
     return out
 
 
-def group_weights_figure(bmv03_group, split_ts):
-    """BetaMinVar(β ≥ 0.3) target weights by asset group (single panel)."""
-    group_order = list(ml.ASSET_GROUPS.keys())
-    group_colors = plt.cm.tab10(np.linspace(0, 1, len(group_order)))
-
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.stackplot(bmv03_group.index, bmv03_group.T.to_numpy(), labels=group_order, colors=group_colors)
-    ax.axvline(split_ts, color="black", ls=":", lw=1)
-    ax.set_ylim(0, 1)
-    ax.set_title(r"BetaMinVar($\beta \geq 0.3$) — target weights by asset group")
-    ax.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), fontsize=8)
-    plt.tight_layout()
-    return fig
-
-
 def ex_ante_beta_figure(ex_ante_beta, split_ts):
     """Ex-ante portfolio beta of BetaMinVar(β ≥ 0.3) at each rebalance."""
     fig, ax = plt.subplots(figsize=(9, 3.5))
@@ -222,50 +206,14 @@ def ex_ante_beta_figure(ex_ante_beta, split_ts):
     return fig
 
 
-color_map = {
-    "GMV": ml.FAMILY_COLORS[GMV.family],
-    "MaxSharpe": ml.FAMILY_COLORS[MaxSharpe.family],
-    "EqualWeight": ml.FAMILY_COLORS["Benchmark"],
-    "BetaMinVar(0.3)": ml.FAMILY_COLORS[BetaTargetMinVar.family],
-    "BetaMinVar(0.5)": ml.FAMILY_COLORS[BetaTargetMinVar.family],
-}
-ls_map = {"BetaMinVar(0.5)": "--", "β-match(0.3)": ":", "β-match(0.5)": "-."}
-
-
-def wealth_figure(results, split_ts):
-    """Strategy comparison — cumulative wealth (log scale)."""
-    fig, ax = plt.subplots(figsize=(9.5, 5.5))
-    for name, r in results.items():
-        net = r["net"]
-        wealth = (1.0 + net).cumprod()
-        ax.plot(wealth.index, wealth.to_numpy(), label=name,
-                color=color_map.get(name, "#888888"), lw=1.4, ls=ls_map.get(name, "-"))
-    ax.axvline(split_ts, color="#888888", ls=":", lw=1, label="train/test split")
-    ax.set_yscale("log")
-    ax.set_ylabel("cumulative wealth (log scale, costs as noted)")
-    ax.set_title("Strategy comparison — cumulative wealth")
-    ax.legend(loc="upper left", fontsize=7, ncol=2)
-    plt.tight_layout()
-    return fig
-
-
-def drawdown_figure(results, split_ts):
-    """Strategy comparison — drawdown. Returns (fig, dd_dates) with each
-    strategy's max drawdown and its peak/trough dates."""
-    fig, ax = plt.subplots(figsize=(9.5, 3.5))
+def drawdown_dates(results):
+    """Each strategy's max drawdown and its peak/trough dates."""
     dd_dates = []
     for name, r in results.items():
         net = r["net"]
         wealth = (1.0 + net).cumprod()
         dd = wealth / wealth.cummax() - 1.0
-        ax.plot(dd.index, dd.to_numpy() * 100, label=name,
-                color=color_map.get(name, "#888888"), lw=1.2, ls=ls_map.get(name, "-"))
         trough = dd.idxmin()
         peak = wealth.loc[:trough].idxmax()
         dd_dates.append({"strategy": name, "max_dd": float(dd.min()), "peak": peak.date(), "trough": trough.date()})
-    ax.axvline(split_ts, color="#888888", ls=":", lw=1)
-    ax.set_ylabel("drawdown (%)")
-    ax.set_title("Strategy comparison — drawdown")
-    ax.legend(loc="lower left", fontsize=7, ncol=2)
-    plt.tight_layout()
-    return fig, dd_dates
+    return dd_dates
