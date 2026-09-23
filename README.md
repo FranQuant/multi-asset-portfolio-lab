@@ -1,7 +1,11 @@
 # multi-asset-portfolio-lab
 
 Research repo comparing deterministic portfolio-construction methods on a
-shared backtest harness. Work in progress.
+shared backtest harness. It provides an overview of portfolio construction 
+frameworks, their historical performance across different market regimes, 
+and practical considerations for implementation.
+
+ Work in progress.
 
 ## Setup
 
