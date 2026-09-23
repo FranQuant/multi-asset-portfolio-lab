@@ -194,3 +194,65 @@ def halfl1_lw_figure(results, split_ts):
     ax.legend(fontsize=8)
     plt.tight_layout()
     return fig
+
+
+def _corr(Sigma):
+    Sigma = np.asarray(Sigma)
+    d = np.sqrt(np.diag(Sigma))
+    return Sigma / np.outer(d, d)
+
+
+def corr_heatmaps(Sigma_S, Sigma_LW):
+    """§4 method figure: sample-implied, LW-implied (each from its own
+    diagonal) and LW - sample correlation, in ml.UNIVERSE order."""
+    R_S, R_LW = _corr(Sigma_S), _corr(Sigma_LW)
+    R_D = R_LW - R_S
+    n = len(ml.UNIVERSE)
+    bounds = np.cumsum([len(g) for g in ml.ASSET_GROUPS.values()])[:-1] - 0.5
+    d_lim = float(np.abs(R_D).max())
+
+    fig, axes = plt.subplots(1, 3, figsize=(17, 5.8), layout="constrained")
+    panels = [(R_S, "sample-implied correlation", -1, 1),
+              (R_LW, "LW-implied correlation", -1, 1),
+              (R_D, "LW − sample correlation", -d_lim, d_lim)]
+    ims = []
+    for ax, (R, title, lo, hi) in zip(axes, panels):
+        im = ax.imshow(R, vmin=lo, vmax=hi, cmap="RdBu_r")
+        ims.append(im)
+        for b in bounds:
+            ax.axhline(b, color="black", lw=0.6)
+            ax.axvline(b, color="black", lw=0.6)
+        ax.set_xticks(range(n))
+        ax.set_xticklabels(ml.UNIVERSE, rotation=90, fontsize=7)
+        ax.set_yticks(range(n))
+        ax.set_yticklabels(ml.UNIVERSE, fontsize=7)
+        ax.set_title(title, fontsize=10)
+        ax.grid(False)
+    fig.colorbar(ims[0], ax=axes[:2].tolist(), shrink=0.8, label="correlation")
+    fig.colorbar(ims[2], ax=axes[2], shrink=0.8, label="Δ correlation")
+    fig.suptitle("Correlation at 2022-12-31: sample vs Ledoit-Wolf")
+    return fig
+
+
+def eigen_scree(S_emp, delta, m):
+    """§3 method figure: eigenvalues (descending, annualized, log) of the
+    sample Σ and of Σ_LW = (1-δ)S + δmI, condition numbers in the legend."""
+    S_emp = np.asarray(S_emp)
+    lam_S = np.sort(np.linalg.eigvalsh(S_emp))[::-1]
+    lam_LW = np.sort(np.linalg.eigvalsh((1 - delta) * S_emp + delta * m * np.eye(len(S_emp))))[::-1]
+    k = np.arange(1, len(lam_S) + 1)
+
+    fig, ax = plt.subplots(figsize=(9.5, 4.5))
+    ax.plot(k, lam_S * ml.TRADING_DAYS, marker="o", lw=1.1, color="#555555",
+            label=f"sample Σ (cond = {lam_S[0] / lam_S[-1]:.1f})")
+    ax.plot(k, lam_LW * ml.TRADING_DAYS, marker="s", lw=1.1, color=ml.FAMILY_COLORS["Risk-based"],
+            label=f"Σ_LW, δ={delta:.4f} (cond = {lam_LW[0] / lam_LW[-1]:.1f})")
+    ax.axhline(m * ml.TRADING_DAYS, color="#cccccc", lw=0.8, ls="--", label="m (mean eigenvalue)")
+    ax.set_yscale("log")
+    ax.set_xticks(k)
+    ax.set_xlabel("eigenvalue rank")
+    ax.set_ylabel("eigenvalue (annualized, log)")
+    ax.set_title("Eigenvalue scree at 2022-12-31: sample vs Ledoit-Wolf")
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+    return fig

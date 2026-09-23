@@ -30,7 +30,7 @@ direction = ">"
 rule_text = 'mean net return difference ≥ 0; counts only at |t| ≥ 2; read only together with the §9 β decomposition'
 rule = "full_t_only"
 applied = 'full-window t ≥ 2 only, as registered in §6; test-window t shown descriptively (the not-robust convention starts in notebook 05)'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "H2"
@@ -41,7 +41,7 @@ direction = "<"
 rule_text = 'mean net return difference ≤ 0; counts only at |t| ≥ 2'
 rule = "full_t_only"
 applied = 'full-window t ≤ −2 only, as registered in §6'
-evaluated = false
+evaluated = true
 
 [[hypothesis]]
 id = "BL"
@@ -49,4 +49,4 @@ label = 'BL(0.1) (LW − sample predicted null)'
 kind = "null"
 statistic = "paired daily difference BL(0.1)(LW) − BL(0.1)(sample): t"
 rule_text = 'predicted null: LW − sample indistinguishable from zero; counts only at |t| ≥ 2'
-evaluated = false
+evaluated = true
