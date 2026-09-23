@@ -38,6 +38,8 @@ kind = "count"
 statistic = "effN(MDP) ≤ effN(GMV) at the 208 rebalances; test-window count reported separately"
 direction = "<"
 rule_text = 'holds on > 50% of the 208 rebalances; test window count reported separately'
+rule = "no_2022"
+applied = '> 50% of the 208 AND > 50% of the 40 test rebalances (§2 closing sentence: a full-window-only pass is not robust); no 2022-12-31 condition'
 evaluated = false
 
 [[hypothesis]]
@@ -47,6 +49,8 @@ kind = "count"
 statistic = "w_UUP(MDP) ≥ w_UUP(GMV) at the 208 rebalances, and the UUP corner at 2022-12-31"
 direction = ">"
 rule_text = 'holds on > 50% of rebalances, and the UUP corner persists at 2022-12-31; test window count reported separately'
+rule = "standard"
+applied = 'count rule; 2022-12-31 condition = w_UUP(MDP) ≥ w_UUP(GMV) AND UUP is the largest MDP(S) weight; test > 50% per §2 closing sentence'
 evaluated = false
 
 [[hypothesis]]
@@ -66,6 +70,7 @@ direction = "<"
 beta_condition = true
 allow_not_robust = true
 rule_text = 'MDP − EW < 0, with |Δβ part| > |Δα| and Δα |t| < 2; supported only if full-window t ≤ −2 AND the test-window mean is also negative; a pass on the full window only is "not robust"'
+alpha_null = true
 evaluated = false
 
 [[hypothesis]]

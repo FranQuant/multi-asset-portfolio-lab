@@ -170,10 +170,13 @@ def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "high
                         xlabel="rebalance date"):
     """effN / max weight / highlight-asset weight over rebalances, one row
     each (nb07 F4; also nb03 cell 15 and nb05 cells 19/22 via rows, figsize,
-    titles, percent, effn_floor, split_label, xlabel)."""
+    titles, percent, effn_floor, split_label, xlabel). Optional row "turnover":
+    trailing 12-rebalance sum of diag["turnover_per_rebalance"], first entry
+    (initial allocation from cash) dropped."""
     scale = 100 if percent else 1
     unit = " (%)" if percent else ""
-    ylabels = {"effN": "effective N", "max_w": f"max weight{unit}", "highlight": f"{highlight} weight{unit}"}
+    ylabels = {"effN": "effective N", "max_w": f"max weight{unit}", "highlight": f"{highlight} weight{unit}",
+               "turnover": f"trailing 12-rebalance one-way turnover{' (%/yr)' if percent else ' (/yr)'}"}
 
     def series(name, row):
         wlog = results[name]["wlog"]
@@ -183,6 +186,9 @@ def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "high
             return wlog.max(axis=1) * scale
         if row == "highlight":
             return wlog[highlight] * scale
+        if row == "turnover":
+            tlog = results[name]["diag"]["turnover_per_rebalance"].iloc[1:]
+            return tlog.rolling(12, min_periods=12).sum() * scale
         raise ValueError(f"concentration_panel: unknown row {row!r}")
 
     fig, axes = plt.subplots(len(rows), 1, figsize=figsize, sharex=True, squeeze=False)
@@ -192,7 +198,7 @@ def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "high
             ts = series(name, row)
             color = colors[name] if colors and name in colors else _color_for(name)
             ax.plot(ts.index, ts.to_numpy(), label=name, color=color, lw=1.2)
-        if row == "effN" and ref is not None:
+        if row in ("effN", "turnover") and ref is not None:
             ts = series(ref, row)
             ax.plot(ts.index, ts.to_numpy(), label=ref, color="#999999", lw=0.8, ls="--")
         if row == "effN" and effn_floor is not None:
@@ -207,6 +213,42 @@ def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "high
         axes[-1].set_xlabel(xlabel)
     if suptitle is not None:
         fig.suptitle(suptitle)
+    fig.tight_layout()
+    return fig
+
+
+def capital_vs_risk(weights: dict, Sigma, highlight="UUP", title=None, figsize=None):
+    """Capital weight vs risk-contribution share per asset, one panel per
+    method in `weights` (name -> pd.Series of weights indexed by ticker);
+    risk shares = risk_contributions(w, Sigma) normalized to sum 1."""
+    from .models import risk_contributions
+
+    tickers = list(Sigma.columns)
+    n = len(tickers)
+    x = np.arange(n)
+    if figsize is None:
+        figsize = (3.2 * len(weights), 3.8)
+
+    fig, axes = plt.subplots(1, len(weights), figsize=figsize, sharey=True, squeeze=False)
+    axes = axes[0]
+    for ax, (name, w) in zip(axes, weights.items()):
+        if set(w.index) != set(tickers):
+            raise ValueError(f"capital_vs_risk: weights[{name!r}] index does not match Sigma.columns")
+        w = w.reindex(tickers)
+        rc = risk_contributions(w, Sigma)
+        share = rc / rc.sum()
+        cap_colors = ["#c0392b" if t == highlight else "#1f4e79" for t in tickers]
+        risk_colors = ["#c0392b" if t == highlight else "#2e7d32" for t in tickers]
+        ax.bar(x - 0.2, w.to_numpy(), width=0.4, color=cap_colors, label="capital weight")
+        ax.bar(x + 0.2, share.to_numpy(), width=0.4, color=risk_colors, alpha=0.6, label="risk share")
+        ax.axhline(1.0 / n, color="black", ls="--", lw=0.8, label="1/N")
+        ax.set_xticks(x)
+        ax.set_xticklabels(tickers, rotation=90, fontsize=6)
+        ax.set_title(name)
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[-1].legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=8)
+    if title is not None:
+        fig.suptitle(title)
     fig.tight_layout()
     return fig
 

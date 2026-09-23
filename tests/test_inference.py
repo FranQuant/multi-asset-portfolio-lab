@@ -171,6 +171,74 @@ def test_evaluate_directional_t_cases(tmp_path):
         assert evaluate(reg, stats)["verdict"].iloc[0] == expected
 
 
+def _write_reg(tmp_path, body, name="r.toml"):
+    p = tmp_path / name
+    p.write_text('notebook = "x"\nprovenance = "y"\ntext = "t"\n\n[[hypothesis]]\nid = "H"\nlabel = "L"\n'
+                 + body + 'rule_text = "r"\n')
+    return p
+
+
+def test_evaluate_count_no_2022_ignores_holds_2022(tmp_path):
+    reg = load_registration(_write_reg(tmp_path, 'kind = "count"\nrule = "no_2022"\n'))
+    for full_ok, test_ok in itertools.product([True, False], repeat=2):
+        stats = {"H": dict(display="d", frac_full=0.6 if full_ok else 0.4, frac_test=0.6 if test_ok else 0.4)}
+        v = evaluate(reg, stats)["verdict"].iloc[0]
+        if full_ok and test_ok:
+            assert v == "SUPPORTED"
+        elif full_ok:
+            assert v == "NOT ROBUST"
+        else:
+            assert v == "NOT SUPPORTED"
+        stats["H"]["holds_2022"] = False  # ignored under no_2022
+        assert evaluate(reg, stats)["verdict"].iloc[0] == v
+
+
+def test_evaluate_directional_t_full_t_only(tmp_path):
+    for direction, sign in (("<", -1), (">", 1)):
+        reg = load_registration(_write_reg(
+            tmp_path, f'kind = "directional_t"\ndirection = "{direction}"\nrule = "full_t_only"\n'))
+        # mean_test absent from stats; a test-window mean of the wrong sign would not matter
+        assert evaluate(reg, {"H": dict(display="d", t_full=sign * 2.5)})["verdict"].iloc[0] == "SUPPORTED"
+        assert evaluate(reg, {"H": dict(display="d", t_full=sign * 1.9)})["verdict"].iloc[0] == "NOT SUPPORTED"
+        wrong = {"H": dict(display="d", t_full=sign * 2.5, mean_test=-sign * 0.01)}
+        assert evaluate(reg, wrong)["verdict"].iloc[0] == "SUPPORTED"
+
+
+def test_evaluate_alpha_null_gates_verdict(tmp_path):
+    reg = load_registration(_write_reg(
+        tmp_path, 'kind = "directional_t"\ndirection = "<"\nbeta_condition = true\n'
+                  'allow_not_robust = true\nalpha_null = true\n'))
+    base = dict(display="d", t_full=-2.5, mean_test=-0.01, beta_part=-0.05, d_alpha=0.01)
+    assert evaluate(reg, {"H": dict(base, t_alpha=1.99)})["verdict"].iloc[0] == "SUPPORTED"
+    assert evaluate(reg, {"H": dict(base, t_alpha=2.0)})["verdict"].iloc[0] == "NOT SUPPORTED"
+    assert evaluate(reg, {"H": dict(base, t_alpha=-2.0)})["verdict"].iloc[0] == "NOT SUPPORTED"
+    not_robust = dict(base, mean_test=0.01)
+    assert evaluate(reg, {"H": dict(not_robust, t_alpha=1.99)})["verdict"].iloc[0] == "NOT ROBUST"
+    assert evaluate(reg, {"H": dict(not_robust, t_alpha=2.5)})["verdict"].iloc[0] == "NOT SUPPORTED"
+
+
+def test_evaluate_applied_in_rule_column(tmp_path):
+    stats = {"H": dict(display="d", t=0.5)}
+    reg = load_registration(_write_reg(tmp_path, 'kind = "null"\napplied = "how"\n'))
+    assert evaluate(reg, stats)["rule"].iloc[0] == "r [applied: how]"
+    reg = load_registration(_write_reg(tmp_path, 'kind = "null"\n', name="r2.toml"))
+    assert evaluate(reg, stats)["rule"].iloc[0] == "r"
+
+
+def test_load_registration_rejects_bad_rule_fields(tmp_path):
+    with pytest.raises(ValueError, match="rule"):
+        load_registration(_write_reg(tmp_path, 'kind = "count"\nrule = "bogus"\n', name="a.toml"))
+    with pytest.raises(ValueError, match="rule"):
+        load_registration(_write_reg(tmp_path, 'kind = "null"\nrule = "standard"\n', name="b.toml"))
+    with pytest.raises(ValueError, match="alpha_null"):
+        load_registration(_write_reg(tmp_path, 'kind = "count"\nalpha_null = true\n', name="c.toml"))
+
+
+@pytest.mark.parametrize("name", ["nb04", "nb05", "nb06"])
+def test_load_registration_nb04_nb05_nb06(name):
+    reg = load_registration(name)
+    assert reg["hypothesis"]
+
 def _synthetic_summary_table(expected, mapping, windows):
     rows = []
     for label, canonical in mapping.items():

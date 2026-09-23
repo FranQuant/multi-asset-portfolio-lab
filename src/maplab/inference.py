@@ -17,6 +17,8 @@ from .contract import TRADING_DAYS
 from .data import find_repo_root
 
 HYPOTHESIS_KINDS = ("count", "null", "directional_t", "descriptive")
+# Optional per-hypothesis `rule` variants, by kind; absent = "standard".
+RULE_VARIANTS = {"count": ("standard", "no_2022"), "directional_t": ("standard", "full_t_only")}
 
 
 def ols(y: pd.Series, X: pd.DataFrame) -> dict:
@@ -218,6 +220,12 @@ def load_registration(name_or_path) -> dict:
                 raise ValueError(f"{p.name}: hypothesis #{i} missing required key {key!r}")
         if h["kind"] not in HYPOTHESIS_KINDS:
             raise ValueError(f"{p.name}: hypothesis {h['id']!r} has unknown kind {h['kind']!r}")
+        if "rule" in h and h["rule"] not in RULE_VARIANTS.get(h["kind"], ()):
+            raise ValueError(f"{p.name}: hypothesis {h['id']!r} has rule {h['rule']!r}, "
+                             f"not allowed for kind {h['kind']!r}")
+        if "alpha_null" in h and h["kind"] != "directional_t":
+            raise ValueError(f"{p.name}: hypothesis {h['id']!r} sets alpha_null on kind {h['kind']!r}; "
+                             "only directional_t allows it")
     return reg
 
 
@@ -235,8 +243,10 @@ def evaluate(reg: dict, stats: dict) -> pd.DataFrame:
         if kind == "descriptive":
             continue
         s = stats[h["id"]]
+        rule = h.get("rule", "standard")
         if kind == "count":
-            verdict = count_rule(s["holds_2022"], s["frac_full"], s["frac_test"])
+            holds_2022 = True if rule == "no_2022" else s["holds_2022"]
+            verdict = count_rule(holds_2022, s["frac_full"], s["frac_test"])
         elif kind == "null":
             if "t" in s:
                 t_abs = abs(s["t"])
@@ -245,22 +255,25 @@ def evaluate(reg: dict, stats: dict) -> pd.DataFrame:
             verdict = null_verdict(t_abs)
         elif kind == "directional_t":
             direction = h.get("direction", s.get("direction"))
+            full_t_only = rule == "full_t_only"
             if direction == "<":
                 pass_t = s["t_full"] <= -2
-                test_ok = s["mean_test"] < 0
+                test_ok = True if full_t_only else s["mean_test"] < 0
             elif direction == ">":
                 pass_t = s["t_full"] >= 2
-                test_ok = s["mean_test"] > 0
+                test_ok = True if full_t_only else s["mean_test"] > 0
             else:
                 raise ValueError(f"evaluate: hypothesis {h['id']!r} has bad direction {direction!r}")
             beta_ok = (abs(s["beta_part"]) > abs(s["d_alpha"])) if h.get("beta_condition", False) else True
-            if pass_t and test_ok and beta_ok:
+            alpha_ok = abs(s["t_alpha"]) < 2 if h.get("alpha_null", False) else True
+            if pass_t and test_ok and beta_ok and alpha_ok:
                 verdict = "SUPPORTED"
-            elif pass_t and beta_ok and not test_ok and h.get("allow_not_robust", False):
+            elif pass_t and beta_ok and alpha_ok and not test_ok and h.get("allow_not_robust", False):
                 verdict = "NOT ROBUST"
             else:
                 verdict = "NOT SUPPORTED"
-        rows.append({"item": h["label"], "statistic": s["display"], "rule": h["rule_text"], "verdict": verdict})
+        rule_col = f"{h['rule_text']} [applied: {h['applied']}]" if "applied" in h else h["rule_text"]
+        rows.append({"item": h["label"], "statistic": s["display"], "rule": rule_col, "verdict": verdict})
     return pd.DataFrame(rows, columns=["item", "statistic", "rule", "verdict"])
 
 

@@ -7,6 +7,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
 import maplab as ml  # noqa: E402
@@ -16,6 +17,7 @@ from maplab.plotting import (  # noqa: E402
     snapshot_map,
     group_stackplot,
     concentration_panel,
+    capital_vs_risk,
     cumulative_paired,
 )
 
@@ -37,6 +39,7 @@ def make_results(seed=1):
     rdates = pd.date_range("2020-01-31", periods=30, freq="ME")
     days = pd.bdate_range(rdates[0], rdates[-1])
     results = {}
+    rng_t = np.random.default_rng(seed + 100)  # separate stream: existing draws unchanged
     for name in ["A(S)", "B(S)", "EW"]:
         if name == "EW":
             w = np.full((len(rdates), N_ASSETS), 1.0 / N_ASSETS)
@@ -45,6 +48,9 @@ def make_results(seed=1):
         results[name] = {
             "wlog": pd.DataFrame(w, index=rdates, columns=UNIVERSE),
             "net": pd.Series(rng.normal(0.0003, 0.008, size=len(days)), index=days),
+            "diag": {"turnover_per_rebalance": pd.Series(
+                rng_t.uniform(0.0, 0.2, size=len(rdates)),
+                index=rdates, name="one_way_turnover")},
         }
     split_ts = rdates[20]
     return results, split_ts
@@ -90,6 +96,44 @@ def test_concentration_panel_axes_count():
         assert isinstance(fig, Figure)
         assert len(fig.axes) == len(rows)
         plt.close(fig)
+
+
+def test_concentration_panel_turnover_row():
+    results, split_ts = make_results()
+    rows = ("effN", "max_w", "highlight", "turnover")
+    fig = concentration_panel(results, ["A(S)", "B(S)"], rows=rows, split_ts=split_ts)
+    assert len(fig.axes) == 4
+    ax = fig.axes[3]
+    line = next(ln for ln in ax.lines if ln.get_label() == "A(S)")
+    y = np.asarray(line.get_ydata(), dtype=float)
+    first = y[~np.isnan(y)][0]
+    tlog = results["A(S)"]["diag"]["turnover_per_rebalance"]
+    assert np.isclose(first, 100 * tlog.iloc[1:13].sum(), rtol=0, atol=1e-12)
+    assert "EW" in [ln.get_label() for ln in ax.lines]
+    plt.close(fig)
+
+
+def test_capital_vs_risk_bars_and_alignment():
+    rng = np.random.default_rng(3)
+    tickers = ["A", "B", "UUP", "D", "E"]
+    M = rng.normal(size=(5, 5))
+    Sigma = pd.DataFrame(M @ M.T + 0.1 * np.eye(5), index=tickers, columns=tickers)
+    weights = {f"m{k}": pd.Series(rng.dirichlet(np.ones(5)), index=tickers) for k in range(3)}
+    weights["m1"] = weights["m1"].iloc[::-1]  # different order, same index set
+    fig = capital_vs_risk(weights, Sigma, title="t")
+    assert len(fig.axes) == 3
+    n = len(tickers)
+    for ax in fig.axes:
+        assert len(ax.patches) == 2 * n
+        heights = np.array([pch.get_height() for pch in ax.patches])
+        assert np.isclose(heights[:n].sum(), 1.0, rtol=0, atol=1e-12)
+        assert np.isclose(heights[n:].sum(), 1.0, rtol=0, atol=1e-12)
+    plt.close(fig)
+
+    bad = dict(weights, m0=weights["m0"].drop("D"))
+    with pytest.raises(ValueError):
+        capital_vs_risk(bad, Sigma)
+    plt.close("all")
 
 
 def test_cumulative_paired_lines_with_and_without_beta():

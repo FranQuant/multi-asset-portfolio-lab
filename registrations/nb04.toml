@@ -28,6 +28,8 @@ kind = "directional_t"
 statistic = "paired daily difference GMV(LW) − GMV(sample): annualized mean, TE, t"
 direction = ">"
 rule_text = 'mean net return difference ≥ 0; counts only at |t| ≥ 2; read only together with the §9 β decomposition'
+rule = "full_t_only"
+applied = 'full-window t ≥ 2 only, as registered in §6; test-window t shown descriptively (the not-robust convention starts in notebook 05)'
 evaluated = false
 
 [[hypothesis]]
@@ -37,6 +39,8 @@ kind = "directional_t"
 statistic = "paired daily difference MaxSharpe(LW) − MaxSharpe(sample): annualized mean, TE, t"
 direction = "<"
 rule_text = 'mean net return difference ≤ 0; counts only at |t| ≥ 2'
+rule = "full_t_only"
+applied = 'full-window t ≤ −2 only, as registered in §6'
 evaluated = false
 
 [[hypothesis]]

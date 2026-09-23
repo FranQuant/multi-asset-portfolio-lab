@@ -77,6 +77,8 @@ kind = "count"
 statistic = "effN(ERC) ≥ max(effN GMV, effN MDP) at the 208 rebalances"
 direction = ">"
 rule_text = 'holds on > 50% of the 208 rebalances AND > 50% of the 40 test rebalances'
+rule = "no_2022"
+applied = '> 50% of the 208 AND > 50% of the 40 test rebalances; no 2022-12-31 condition'
 evaluated = false
 
 [[hypothesis]]
