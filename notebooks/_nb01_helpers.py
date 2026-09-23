@@ -5,10 +5,11 @@ asserts and shows them.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FixedLocator, FuncFormatter, NullFormatter, NullLocator
+import pandas as pd
 
 import maplab as ml
 from maplab import GMV, MaxSharpe
+from maplab.models import gmv_closed_form, tangency_closed_form
 
 
 def effective_n_stats(n_assets: int, alpha: float, size: int = 20_000, seed: int = 7) -> dict:
@@ -80,26 +81,36 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     return fig
 
 
-def wealth_figure(strategies, results, split_ts):
-    """GMV vs MaxSharpe vs EqualWeight — cumulative wealth (log scale)."""
-    fig, ax = plt.subplots(figsize=(9, 5.5))
-    for name, strat in strategies.items():
-        net = results[name]["net"]
-        wealth = (1.0 + net).cumprod()
-        color = ml.FAMILY_COLORS[strat.family]
-        ax.plot(wealth.index, wealth.to_numpy(), label=strat.label, color=color, lw=1.6)
+def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
+    """Unconstrained (closed-form) vs long-only GMV and tangency weights at
+    the snapshot, one panel each, grouped bars per ticker, UUP highlighted.
+    Returns (fig, table): gross leverage, sum of negative weights, max |w|."""
+    tickers = list(Sigma.columns)
+    w_gmv_unc = gmv_closed_form(Sigma)
+    w_tan_unc = tangency_closed_form(mu, Sigma, rf=rf_ann)
+    pairs = {"GMV": (w_gmv_unc, w_gmv_lo.reindex(tickers)),
+             "MaxSharpe": (w_tan_unc, w_msr_lo.reindex(tickers))}
 
-    ax.axvline(split_ts, color="#888888", ls=":", lw=1, label="train/test split")
-    ax.set_yscale("log")
-    ymin, ymax = ax.get_ylim()
-    candidate_ticks = [1, 2, 3, 4, 6, 8]
-    yticks = [t for t in candidate_ticks if ymin <= t <= ymax]
-    ax.yaxis.set_major_locator(FixedLocator(yticks))
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-    ax.yaxis.set_minor_locator(NullLocator())
-    ax.yaxis.set_minor_formatter(NullFormatter())
-    ax.set_ylabel("cumulative wealth (log scale, net of costs)")
-    ax.set_title("GMV vs MaxSharpe vs EqualWeight — cumulative wealth")
-    ax.legend(loc="upper left", fontsize=8)
-    plt.tight_layout()
-    return fig
+    x = np.arange(len(tickers))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+    for ax, (name, (w_unc, w_lo)) in zip(axes, pairs.items()):
+        unc_colors = ["#c0392b" if t == "UUP" else "#1f4e79" for t in tickers]
+        lo_colors = ["#c0392b" if t == "UUP" else "#2e7d32" for t in tickers]
+        ax.bar(x - 0.2, w_unc.to_numpy(), width=0.4, color=unc_colors, label="unconstrained (closed form)")
+        ax.bar(x + 0.2, w_lo.to_numpy(), width=0.4, color=lo_colors, alpha=0.5, label="long-only (backtest)")
+        ax.axhline(0, color="black", lw=0.8)
+        ax.set_xticks(x)
+        ax.set_xticklabels(tickers, rotation=90, fontsize=7)
+        ax.set_title("GMV" if name == "GMV" else "MaxSharpe (unconstrained = tangency)")
+        ax.set_ylabel("weight")
+    axes[0].legend(fontsize=8)
+    fig.suptitle("Unconstrained vs long-only weights at the snapshot — independent y-axes "
+                 f"(max |w|: tangency {w_tan_unc.abs().max():.2f}, GMV {w_gmv_unc.abs().max():.2f})")
+    fig.tight_layout()
+
+    cols = {"GMV unconstrained": w_gmv_unc, "GMV long-only": pairs["GMV"][1],
+            "Tangency unconstrained": w_tan_unc, "MaxSharpe long-only": pairs["MaxSharpe"][1]}
+    table = pd.DataFrame({name: {"gross leverage Σ|w|": float(w.abs().sum()),
+                                 "sum of negative weights": float(w[w < 0].sum()),
+                                 "max |w|": float(w.abs().max())} for name, w in cols.items()})
+    return fig, table
