@@ -117,3 +117,10 @@ test = 0.73
 full = 0.61
 train = 0.62
 test = 0.55
+
+# Fixed-weight benchmark (FixedWeight 60% SPY / 40% IEF), notebook 01.
+
+[SixtyForty_SPY_IEF]
+full = 0.91
+train = 0.89
+test = 1.00

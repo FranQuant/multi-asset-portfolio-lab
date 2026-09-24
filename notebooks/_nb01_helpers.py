@@ -36,14 +36,14 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.15, color="#bbbbbb", zorder=0,
+    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.08, color="#cccccc", zorder=0,
                label=f"random long-only portfolios (Dirichlet α={mc_alpha})")
 
     asset_vol = np.sqrt(np.diag(Sigma_np))
-    ax.scatter(asset_vol, mu_np, s=18, color="#999999", zorder=2)
+    ax.scatter(asset_vol, mu_np, s=18, color="black", zorder=2)
     for i, tkr in enumerate(ml.UNIVERSE):
         ax.annotate(tkr, (asset_vol[i], mu_np[i]), fontsize=6,
-                    xytext=(3, 3), textcoords="offset points", color="#666666")
+                    xytext=(3, 3), textcoords="offset points", color="black")
 
     gmv_ret = float(w_gmv.to_numpy() @ mu_np)
     gmv_vol = float(np.sqrt(w_gmv.to_numpy() @ Sigma_np @ w_gmv.to_numpy()))
@@ -60,12 +60,20 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     ew_w = np.full(n, 1.0 / n)
     ew_ret = float(ew_w @ mu_np)
     ew_vol = float(np.sqrt(ew_w @ Sigma_np @ ew_w))
-    ax.scatter([ew_vol], [ew_ret], marker="D", s=90,
+    ax.scatter([ew_vol], [ew_ret], marker="D", s=130, edgecolors="black", linewidths=1.0,
                color=ml.FAMILY_COLORS["Benchmark"], zorder=4, label="EqualWeight")
 
-    ax.scatter([gmv_vol], [gmv_ret], marker="*", s=220,
+    w_6040 = pd.Series(0.0, index=Sigma.columns)
+    w_6040[["SPY", "IEF"]] = [0.6, 0.4]
+    w_6040 = w_6040.to_numpy()
+    ret_6040 = float(w_6040 @ mu_np)
+    vol_6040 = float(np.sqrt(w_6040 @ Sigma_np @ w_6040))
+    ax.scatter([vol_6040], [ret_6040], marker="D", s=130, edgecolors="black", linewidths=1.0,
+               color=ml.plotting.METHOD_COLORS["60/40"], zorder=4, label="60/40")
+
+    ax.scatter([gmv_vol], [gmv_ret], marker="*", s=380, edgecolors="black", linewidths=1.0,
                color=ml.FAMILY_COLORS[GMV.family], zorder=4, label="GMV")
-    ax.scatter([msr_vol], [msr_ret], marker="*", s=220,
+    ax.scatter([msr_vol], [msr_ret], marker="*", s=380, edgecolors="black", linewidths=1.0,
                color=ml.FAMILY_COLORS[MaxSharpe.family], zorder=4, label="MaxSharpe")
 
     cml_x = np.linspace(0, max(asset_vol.max(), msr_vol, mc_vol.max()) * 1.05, 20)
