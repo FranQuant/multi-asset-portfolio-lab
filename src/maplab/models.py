@@ -394,7 +394,7 @@ class MaxSharpe(Strategy):
 
         Sigma_np = Sigma.to_numpy()
         excess_np = excess.to_numpy()
-        w, retried = _tangency_long_only(
+        w, _ = _tangency_long_only(
             excess_np, Sigma_np, self.label, asof,
             on_retry=lambda: self.retry_dates.append(asof),
         )
@@ -761,6 +761,36 @@ class EqualWeight(Strategy):
     def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
         n = len(self.universe)
         return pd.Series(1.0 / n, index=self.universe)
+
+
+class FixedWeight(Strategy):
+    """Fixed target weights reset at every rebalance, e.g.
+    FixedWeight({'SPY': 0.6, 'IEF': 0.4}, name='60/40'). No estimation, no
+    lookback dependency."""
+
+    family = "Benchmark"
+    constraint = LONG_ONLY
+
+    def __init__(self, weights: dict[str, float], name: str = "Fixed"):
+        super().__init__()
+        unknown = [t for t in weights if t not in self.universe]
+        if unknown:
+            raise ValueError(f"FixedWeight: ticker(s) not in universe: {unknown}")
+        negative = {t: v for t, v in weights.items() if v < 0}
+        if negative:
+            raise ValueError(f"FixedWeight: negative weight(s): {negative}")
+        total = sum(weights.values())
+        if abs(total - 1.0) > 1e-12:
+            raise ValueError(f"FixedWeight: weights sum to {total!r}, expected 1.0")
+        self.name = name
+        self.weights = pd.Series(weights, dtype=float).reindex(self.universe, fill_value=0.0)
+
+    @property
+    def label(self) -> str:
+        return self.name
+
+    def predict_weights(self, panel: Panel, asof: pd.Timestamp) -> pd.Series:
+        return self.weights.copy()
 
 
 class InverseVol(Strategy):

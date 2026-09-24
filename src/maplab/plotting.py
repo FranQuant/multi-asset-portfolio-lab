@@ -60,6 +60,7 @@ METHOD_COLORS = {
     "MDP": FAMILY_COLORS["Risk-based"],
     "GMV": "#555555",
     "EW": "#999999",
+    "60/40": "#17a2b8",
 }
 
 

@@ -30,6 +30,7 @@ from .models import MostDiversified, mdp_closed_form
 from .models import EqualRiskContribution, risk_contributions
 from .models import HierarchicalRiskParity
 from .models import InverseVol, InverseVariance
+from .models import FixedWeight
 from . import diagnostics, inference
 from . import robust
 from .plotting import apply_style, FAMILY_COLORS
@@ -51,4 +52,5 @@ __all__ = [
     "EqualRiskContribution", "risk_contributions",
     "HierarchicalRiskParity",
     "InverseVol", "InverseVariance",
+    "FixedWeight",
 ]

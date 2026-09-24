@@ -1040,3 +1040,58 @@ def test_inverse_vol_inverse_variance_labels():
     assert InverseVariance().label == "IVP(sample)"
     assert InverseVol.family in ml.FAMILY_COLORS
     assert InverseVariance.family in ml.FAMILY_COLORS
+
+
+# ── o. FixedWeight ───────────────────────────────────────────────────────────
+
+from maplab.models import FixedWeight  # noqa: E402
+
+
+def test_fixed_weight_60_40():
+    panel, log_returns = make_panel(seed=71)
+    asof = log_returns.index[COV_LOOKBACK]
+    fw = FixedWeight({"SPY": 0.6, "IEF": 0.4}, name="60/40")
+    w = fw(panel, asof)
+    assert list(w.index) == UNIVERSE
+    assert abs(w.sum() - 1.0) <= 1e-12
+    assert w["SPY"] == 0.6 and w["IEF"] == 0.4
+    assert (w.drop(["SPY", "IEF"]) == 0.0).all()
+    assert fw.label == "60/40"
+    assert FixedWeight.family in ml.FAMILY_COLORS
+
+
+@pytest.mark.parametrize("weights", [
+    {"SPY": 0.6, "NOTATICKER": 0.4},
+    {"SPY": 1.2, "IEF": -0.2},
+    {"SPY": 0.6, "IEF": 0.3},
+])
+def test_fixed_weight_raises_on_invalid(weights):
+    with pytest.raises(ValueError):
+        FixedWeight(weights)
+
+
+def test_fixed_weight_equal_matches_equal_weight():
+    panel, log_returns = make_panel(seed=72)
+    asof = log_returns.index[COV_LOOKBACK]
+    w_fw = FixedWeight({t: 1 / 13 for t in UNIVERSE})(panel, asof)
+    w_ew = EqualWeight()(panel, asof)
+    assert np.allclose(w_fw.to_numpy(), w_ew.to_numpy(), rtol=0, atol=1e-12)
+
+
+def test_fixed_weight_backtest_trades_drift_back():
+    rng = np.random.default_rng(73)
+    # ends on a business-day calendar month-end so the last segment is non-empty
+    idx = pd.bdate_range("2020-01-01", "2021-03-31")
+    log_returns = pd.DataFrame(rng.normal(0.0005, 0.01, size=(len(idx), N_ASSETS)),
+                               index=idx, columns=UNIVERSE)
+    panel = Panel({"returns": log_returns})
+    fw = FixedWeight({"SPY": 0.6, "IEF": 0.4}, name="60/40")
+
+    net, wlog, diag = ml.backtest(fw, np.expm1(log_returns), panel)
+
+    assert net.notna().all() and len(net) > 0
+    turnover = diag["turnover_per_rebalance"]
+    assert len(turnover) > 1
+    assert (turnover.iloc[1:] > 0).all()
+    for _, row in wlog.iterrows():
+        assert np.allclose(row.to_numpy(), fw.weights.reindex(wlog.columns).to_numpy(), rtol=0, atol=1e-12)
