@@ -48,9 +48,13 @@ def ols(y: pd.Series, X: pd.DataFrame) -> dict:
     }
 
 
-def sharpe_se(sr: float, years: float) -> float:
-    """Sharpe standard error ~ sqrt((1 + SR^2/2) / T), T in years."""
-    return float(np.sqrt((1 + sr ** 2 / 2) / years))
+def sharpe_se(sr: float, years: float, periods_per_year: int = TRADING_DAYS) -> float:
+    """iid standard error of an annualized Sharpe ratio estimated from
+    `periods_per_year` observations a year over `years` years (Lo 2002):
+    sqrt((1 + sr^2 / (2 * periods_per_year)) / years). periods_per_year=1 is
+    the annual-observation formula used before 2026-09-24. Ignores
+    autocorrelation and fat tails (notebook 08's bootstrap intervals do not)."""
+    return float(np.sqrt((1 + sr ** 2 / (2 * periods_per_year)) / years))
 
 
 def paired_table(results: dict, pairs, split_ts, summary_table: pd.DataFrame | None = None,

@@ -21,6 +21,7 @@ from maplab.inference import (
     load_registration,
     evaluate,
     check_reproduction,
+    sharpe_se,
 )
 
 
@@ -320,3 +321,15 @@ def test_load_registration_nb08_nb09():
         out = evaluate(reg, stats)
         assert len(out) == n_rows
         assert set(out["verdict"]) <= {"NULL HOLDS", "NOT SUPPORTED"}
+
+
+def test_sharpe_se_annual_formula_recovered():
+    assert abs(sharpe_se(0.7, 17.2, periods_per_year=1) - np.sqrt((1 + 0.7 ** 2 / 2) / 17.2)) <= 1e-15
+
+
+def test_sharpe_se_daily_matches_simulation():
+    rng = np.random.default_rng(20260924)
+    td, years, reps, sr = 252, 10, 2000, 1.5
+    x = rng.normal(sr / np.sqrt(td) * 0.01, 0.01, size=(reps, td * years))
+    est = x.mean(axis=1) / x.std(axis=1, ddof=1) * np.sqrt(td)
+    assert abs(est.std(ddof=1) / sharpe_se(sr, years) - 1) <= 0.05
