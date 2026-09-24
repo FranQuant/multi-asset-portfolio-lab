@@ -205,15 +205,3 @@ def ex_ante_beta_figure(ex_ante_beta, split_ts):
     plt.tight_layout()
     return fig
 
-
-def drawdown_dates(results):
-    """Each strategy's max drawdown and its peak/trough dates."""
-    dd_dates = []
-    for name, r in results.items():
-        net = r["net"]
-        wealth = (1.0 + net).cumprod()
-        dd = wealth / wealth.cummax() - 1.0
-        trough = dd.idxmin()
-        peak = wealth.loc[:trough].idxmax()
-        dd_dates.append({"strategy": name, "max_dd": float(dd.min()), "peak": peak.date(), "trough": trough.date()})
-    return dd_dates
