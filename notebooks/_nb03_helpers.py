@@ -12,7 +12,7 @@ from maplab import BlackLitterman, tangency_closed_form
 
 
 def mechanics_table(post):
-    """§3 mechanics table at the split snapshot: Pi, sigma, 12-1 momentum,
+    """§4.2 mechanics table at the split snapshot: Pi, sigma, 12-1 momentum,
     view sign, Q and mu_BL (all in %)."""
     mech_table = pd.DataFrame({
         "Pi_%": 100 * post["pi"],
@@ -26,7 +26,7 @@ def mechanics_table(post):
 
 
 def design_checks(panel, asof_split, post):
-    """§3 checks: k=0 -> EW, tau invariance, closed-form identity, and the
+    """§4.2 checks: k=0 -> EW, tau invariance, closed-form identity, and the
     unconstrained BL(k=0.1) tangency weights."""
     # check 1: k=0 -> long-only weights == EW, mu_bl == pi
     bl_k0 = BlackLitterman(k=0.0)
@@ -54,7 +54,7 @@ def design_checks(panel, asof_split, post):
 
 
 def k_sensitivity(panel, asof_split):
-    """§4 cautionary snapshot: effN / max weight / unconstrained gross
+    """§4.4 cautionary snapshot: effN / max weight / unconstrained gross
     leverage per k, and the long-only weights per k."""
     rows = []
     wtab = {}
@@ -71,60 +71,6 @@ def k_sensitivity(panel, asof_split):
         wtab[f"k={k}"] = w
 
     return pd.DataFrame(rows).set_index("k"), pd.DataFrame(wtab)
-
-
-def group_weights_figure(results, split_ts):
-    """§6 figure: BL(k=0.1) target weights by asset group."""
-    group_order = list(ml.ASSET_GROUPS.keys())
-    group_colors = plt.cm.tab10(np.linspace(0, 1, len(group_order)))
-
-    bl01_group = ml.diagnostics.weights_by_group(results["BL(0.1)"]["wlog"])
-
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    ax.stackplot(bl01_group.index, bl01_group.T.to_numpy(), labels=group_order, colors=group_colors)
-    ax.axvline(split_ts, color="black", ls=":", lw=1)
-    ax.set_ylim(0, 1)
-    ax.set_title("BL(k=0.1) — target weights by asset group")
-    ax.legend(loc="center left", bbox_to_anchor=(1.0, 0.5), fontsize=8)
-    plt.tight_layout()
-    return fig
-
-
-def active_return_table(results, summary_table, split_ts):
-    """§7 BL(k) - EW active return per window: annualized active return,
-    tracking error, IR, t, and cost drags from ann_turnover x COST_BPS."""
-    ew_net = results["EqualWeight"]["net"]
-
-    active_rows = []
-    active_series = {}
-    for name in ["BL(0.1)", "BL(0.2)"]:
-        net = results[name]["net"]
-        idx = net.index.intersection(ew_net.index)
-        active = net.loc[idx] - ew_net.loc[idx]
-        active_series[name] = active
-        win_defs = {
-            "full": active.index >= active.index.min(),
-            "train (<= split)": active.index <= split_ts,
-            "test (> split)": active.index > split_ts,
-        }
-        for window_name, sel in win_defs.items():
-            a = active.loc[sel]
-            ann_active = float(a.mean() * ml.TRADING_DAYS)
-            te = float(a.std(ddof=1) * np.sqrt(ml.TRADING_DAYS))
-            ir = ann_active / te if te > 0 else np.nan
-            t_active = float(a.mean() / (a.std(ddof=1) / np.sqrt(len(a))))
-            cost_drag_bl = float(summary_table.loc[(name, window_name), "ann_turnover"]) * ml.COST_BPS / 1e4
-            cost_drag_ew = float(summary_table.loc[("EqualWeight", window_name), "ann_turnover"]) * ml.COST_BPS / 1e4
-            active_gross_of_costs = ann_active + (cost_drag_bl - cost_drag_ew)
-            active_rows.append({
-                "strategy": name, "window": window_name,
-                "ann_active_return": ann_active, "tracking_error": te,
-                "information_ratio": ir, "t_active": t_active,
-                "cost_drag_bl": cost_drag_bl, "cost_drag_ew": cost_drag_ew,
-                "active_gross_of_costs": active_gross_of_costs,
-            })
-
-    return pd.DataFrame(active_rows).set_index(["strategy", "window"]), active_series
 
 
 def prior_posterior_figure(panel, asof):
