@@ -311,11 +311,15 @@ def _line_style(label: str, styles: dict | None) -> dict:
 def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(10, 8), title=None):
     """Log-scale wealth (1 = start) with BIL wealth from `rf` (grey dashed)
     on top, underwater drawdown below; `net` is label -> daily net Series."""
+    from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
+
     fig, (ax_w, ax_d) = plt.subplots(2, 1, figsize=figsize, sharex=True,
                                      gridspec_kw={"height_ratios": [2, 1]})
     start = end = None
+    ymin, ymax = np.inf, -np.inf
     for label, r in net.items():
         wealth = (1.0 + r).cumprod()
+        ymin, ymax = min(ymin, float(wealth.min())), max(ymax, float(wealth.max()))
         dd = wealth / wealth.cummax() - 1.0
         st = _line_style(label, styles)
         ax_w.plot(wealth.index, wealth.to_numpy(), lw=1.1, label=label, **st)
@@ -324,7 +328,13 @@ def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(10, 8), title
         end = r.index.max() if end is None else max(end, r.index.max())
     rf_w = (1.0 + rf.loc[start:end]).cumprod()
     ax_w.plot(rf_w.index, rf_w.to_numpy(), color="#999999", ls="--", lw=1.0, label="BIL (rf)")
+    ymin, ymax = min(ymin, float(rf_w.min())), max(ymax, float(rf_w.max()))
     ax_w.set_yscale("log")
+    lo = max(0.5, np.floor(2 * ymin) / 2)
+    hi = np.ceil(2 * ymax) / 2
+    ax_w.yaxis.set_major_locator(FixedLocator(np.arange(lo, hi + 1e-9, 0.5)))
+    ax_w.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax_w.yaxis.set_minor_locator(NullLocator())
     ax_w.set_ylabel("wealth (1 = start, log scale)")
     ax_d.set_ylabel("drawdown (%)")
     ax_d.set_xlabel("date")
@@ -349,7 +359,7 @@ def forest_plot(df, label_col, point, lo, hi, group=None, ref=None, figsize=None
     fig, ax = plt.subplots(figsize=figsize)
     ypos = {lab: len(labels) - 1 - i for i, lab in enumerate(labels)}
     width = 0.6
-    offsets = np.linspace(-width / 2, width / 2, len(groups)) if len(groups) > 1 else [0.0]
+    offsets = np.linspace(width / 2, -width / 2, len(groups)) if len(groups) > 1 else [0.0]
     for g, off in zip(groups, offsets):
         sub = df if g is None else df[df[group] == g]
         y = np.array([ypos[lab] for lab in sub[label_col]]) + off
@@ -386,7 +396,8 @@ def pair_matrix(M, labels, title, fmt="{:.2f}", vmax=None, figsize=None, cmap="R
     for i in range(k):
         for j in range(k):
             if np.isfinite(A[i, j]):
-                ax.text(j, i, fmt.format(A[i, j]), ha="center", va="center", fontsize=7)
+                color = "white" if abs(A[i, j]) > 0.6 * vmax else "black"
+                ax.text(j, i, fmt.format(A[i, j]), ha="center", va="center", fontsize=7, color=color)
     ax.set_xticks(range(k))
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
     ax.set_yticks(range(k))

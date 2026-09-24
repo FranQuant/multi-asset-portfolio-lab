@@ -206,3 +206,39 @@ def test_pair_matrix_smoke():
     assert len(fig.axes[0].texts) == 6  # diagonal blanked
     assert [t.get_text() for t in fig.axes[0].get_xticklabels()] == labels
     plt.close(fig)
+
+
+def test_wealth_drawdown_plain_tick_labels():
+    results, split_ts = make_results()
+    net = {name: r["net"] for name, r in results.items()}
+    rf = pd.Series(0.00008, index=results["EW"]["net"].index)
+    fig = wealth_drawdown(net, rf, split_ts)
+    fig.canvas.draw()
+    texts = [t.get_text() for t in fig.axes[0].get_yticklabels()]
+    assert texts and all(t for t in texts)
+    assert not any("×" in t or "10^" in t or "$" in t for t in texts)
+    plt.close(fig)
+
+
+def test_forest_plot_first_group_on_top():
+    df = pd.DataFrame({
+        "label": ["A(S)", "B(S)", "EW"] * 2,
+        "window": ["full"] * 3 + ["test"] * 3,
+        "d": [0.1, -0.2, 0.0, 0.3, -0.1, 0.05],
+    })
+    df["lo"], df["hi"] = df["d"] - 0.2, df["d"] + 0.2
+    fig = forest_plot(df, "label", "d", "lo", "hi", group="window", ref=0.0)
+    ax = fig.axes[0]
+    y_first = np.asarray(ax.containers[0].lines[0].get_ydata())
+    y_last = np.asarray(ax.containers[-1].lines[0].get_ydata())
+    assert np.all(y_first > y_last)
+    plt.close(fig)
+
+
+def test_pair_matrix_text_white_at_vmax():
+    M = np.array([[0.0, 2.0, 0.5], [-2.0, 0.0, 1.0], [-0.5, -1.0, 0.0]])
+    fig = pair_matrix(M, ["A(S)", "B(S)", "EW"], "t")
+    colors = {t.get_text(): t.get_color() for t in fig.axes[0].texts}
+    assert colors["2.00"] == "white" and colors["-2.00"] == "white"
+    assert colors["0.50"] == "black"
+    plt.close(fig)
