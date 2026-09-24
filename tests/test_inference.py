@@ -285,3 +285,38 @@ def test_evaluate_adjusted_null_bands(tmp_path):
 def test_load_registration_rejects_rule_on_adjusted_null(tmp_path):
     with pytest.raises(ValueError, match="rule"):
         load_registration(_write_reg(tmp_path, 'kind = "adjusted_null"\nrule = "standard"\n'))
+
+
+def test_load_registration_nb08_nb09():
+    nb08 = load_registration("nb08")
+    hs = nb08["hypothesis"]
+    ids = [h["id"] for h in hs]
+    assert len(ids) == len(set(ids))
+    h1 = [h for h in hs if h["id"].startswith("H1_") and h["kind"] == "adjusted_null"]
+    h2 = [h for h in hs if h["id"].startswith("H2_") and h["kind"] == "adjusted_null"]
+    assert len(h1) == 7
+    assert len(h2) == 23
+    assert sum("[cluster]" in h["label"] for h in h2) == 9
+    assert sum(h["kind"] == "descriptive" for h in hs) == 3
+
+    nb09 = load_registration("nb09")
+    hs = nb09["hypothesis"]
+    ids = [h["id"] for h in hs]
+    assert len(ids) == len(set(ids))
+    h3 = [h for h in hs if h["id"].startswith("H3_") and h["kind"] == "adjusted_null"]
+    h4 = [h for h in hs if h["id"].startswith("H4_") and h["kind"] == "directional_t"]
+    assert len(h3) == 8
+    assert len(h4) == 8
+    assert all(h["direction"] == "<" and h["allow_not_robust"] is True for h in h4)
+    assert sum(h["kind"] == "descriptive" for h in hs) == 3
+
+    for reg, n_rows in ((nb08, 30), (nb09, 16)):
+        stats = {}
+        for h in reg["hypothesis"]:
+            if h["kind"] == "adjusted_null":
+                stats[h["id"]] = dict(display="d", p_adj=0.5)
+            elif h["kind"] == "directional_t":
+                stats[h["id"]] = dict(display="d", t_full=0.0, mean_test=0.0)
+        out = evaluate(reg, stats)
+        assert len(out) == n_rows
+        assert set(out["verdict"]) <= {"NULL HOLDS", "NOT SUPPORTED"}

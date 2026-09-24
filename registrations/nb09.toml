@@ -1,0 +1,188 @@
+notebook = "notebooks/09_robustness.ipynb"
+provenance = "registered before any Phase 2 notebook output; design fixed by read-only design checks on 2026-09-23 that printed no tested statistic on real data; package at 2d355e1"
+text = '''
+## §1 PRE-REGISTRATION
+
+Registered **before** any cell below computes a Phase 2 statistic. Methods, Newey–West lag rule and bootstrap seed as in notebook 08.
+
+**Runs.** Lookback grid: GMV(S), MDP(S), ERC(S), HRP(S) at 252, 504 and 756 days, all scored from the common start 2011-01-31, the first month-end with 756 trading days of history (184 rebalances, 40 in test). The 252-day runs of the grid are **not** Phase 1 reproductions: they start two years later, so their Sharpe ratios differ from the Phase 1 tables by construction. Core: the 8 notebook 08 core runs at 252 days from the default start, gated as in notebook 08, for H4 and H5.
+
+**H3 (lookback, 8 tests).** For $m \in$ {GMV, MDP, ERC, HRP} and $L \in$ {504, 756}: $H_0$: $SR(m, L) = SR(m, 252)$ on the common-start full window, delta-method HAC test. Holm adjustment over the 8 raw p-values. Verdict bands and the test-window sign condition as in notebook 08 H1. Descriptive, per (m, L): annual turnover, median effN, median UUP weight, UUP weight at 2022-12-31.
+
+**H4 (forecast bias, 8 tests).** Per holding segment k, as in notebook 07: $s_k$ = realized vol of daily net returns over the segment (cost-booking day excluded, at least 10 days); $\hat\sigma_k$ = ex-ante $\sqrt{w' \Sigma w}$ with the 252-day sample Σ at the rebalance; $v_k = s_k^2 / \hat\sigma_k^2$. For each core method, $\bar v$ = mean of $v_k$. Claim: $\bar v < 1$, a genuine variance over-forecast. $t = (\bar v - 1)/\mathrm{sd}$ of the segment block bootstrap of $\bar v$ (circular blocks of 12 segments, B = 10,000, seed 20260923). SUPPORTED iff t ≤ −2 AND the test-window $\bar v$ < 1; t ≤ −2 alone = NOT ROBUST. No multiplicity adjustment: the 8 tests are one related claim and are read as a count.
+
+**Why the variance ratio.** The design check showed that mean $q = \log(s_k/\hat\sigma_k)$ is negative even when the forecast is correct (about −0.03 for normal returns, −0.06 for t5, −0.23 for GARCH-t5), through the Jensen gap and within-segment sampling noise. $\bar v$ is unbiased under a correct forecast. The identity $\bar q = \tfrac12 \log \bar v - J$, with $J \ge 0$, is reported per method (descriptive).
+
+**H5 (descriptive).** Spearman rank correlation of train and test Sharpe across the 8 core runs.
+
+**Honest limitations.**
+
+- H4 uses the sample-Σ ex-ante vol for every method, including methods whose weights come from other inputs (BL, EW); it measures the calibration of the covariance forecast at each method's weights, not a method's own forecast.
+- The Phase 1 means of q, already seen, motivated H4. The variance-ratio statistic and its rule were fixed before $\bar v$ was computed on real data.
+- The common start drops 2009 and 2010 from H3. Three windows only; the grid was fixed before any result.
+- The asymptotic and power caveats of notebook 08 apply; with 8 Holm-adjusted tests, a NULL HOLDS verdict in H3 is not evidence that lookback does not matter.'''
+
+[[hypothesis]]
+id = "H3_GMV_504"
+label = 'H3 (SR GMV 504d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR GMV(S) 504d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_GMV_756"
+label = 'H3 (SR GMV 756d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR GMV(S) 756d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_MDP_504"
+label = 'H3 (SR MDP 504d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR MDP(S) 504d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_MDP_756"
+label = 'H3 (SR MDP 756d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR MDP(S) 756d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_ERC_504"
+label = 'H3 (SR ERC 504d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR ERC(S) 504d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_ERC_756"
+label = 'H3 (SR ERC 756d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR ERC(S) 756d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_HRP_504"
+label = 'H3 (SR HRP 504d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR HRP(S) 504d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_HRP_756"
+label = 'H3 (SR HRP 756d = 252d)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR HRP(S) 756d − 252d, common start; Holm over 8"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H3_desc"
+label = 'H3 (descriptive: turnover, effN, UUP weight by lookback)'
+kind = "descriptive"
+statistic = "annual turnover, median effN, median and 2022-12-31 UUP weight per (method, lookback)"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "H4_EW"
+label = 'H4 (vbar EW < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_GMV"
+label = 'H4 (vbar GMV(S) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_MaxSharpe"
+label = 'H4 (vbar MaxSharpe(S) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_BMV"
+label = 'H4 (vbar BMV(0.3) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_BL"
+label = 'H4 (vbar BL(0.1) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_MDP"
+label = 'H4 (vbar MDP(S) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_ERC"
+label = 'H4 (vbar ERC(S) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_HRP"
+label = 'H4 (vbar HRP(S) < 1)'
+kind = "directional_t"
+statistic = "t = (vbar - 1) / block-bootstrap sd, full-window segments; test-window vbar - 1"
+direction = "<"
+allow_not_robust = true
+rule_text = 'SUPPORTED iff t ≤ −2 AND test-window vbar < 1; t ≤ −2 alone = NOT ROBUST'
+evaluated = true
+
+[[hypothesis]]
+id = "H4_J"
+label = 'H4 (descriptive: q-bar = half log vbar - J)'
+kind = "descriptive"
+statistic = "q_bar, half_log_vbar and Jensen gap J per core method, full and test"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "H5"
+label = 'H5 (descriptive: train vs test Sharpe ranks)'
+kind = "descriptive"
+statistic = "Spearman rank correlation of train and test Sharpe, 8 core runs"
+rule_text = 'descriptive'

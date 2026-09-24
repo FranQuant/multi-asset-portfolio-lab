@@ -1,0 +1,294 @@
+notebook = "notebooks/08_method_comparison.ipynb"
+provenance = "registered before any Phase 2 notebook output; design fixed by read-only design checks on 2026-09-23 that printed no tested statistic on real data; package at 2d355e1"
+text = '''
+## §1 PRE-REGISTRATION
+
+Registered **before** any cell below computes a Phase 2 statistic. The lag rule, block length and bootstrap size were fixed by read-only design checks that printed no tested statistic on real data.
+
+**Runs.** Core: EW, GMV(S), MaxSharpe(S), BMV(0.3), BL(0.1), MDP(S), ERC(S), HRP(S), one registered configuration per Phase 1 notebook (252-day sample Σ). References, used in the Sharpe intervals only: IV, IVP. α family: all 23 strategies backtested in Phase 1 (core plus every sensitivity run). Reproduction gate: Sharpe to 2 dp for all 23 runs in all three windows, and the printed Phase 1 OLS CAPM α t-statistics.
+
+**Data.** Daily net returns in excess of BIL. Windows: full (from the first scored rebalance), train (≤ 2022-12-31), test (2023+).
+
+**Methods.**
+
+- Newey–West long-run variance, Bartlett kernel, lag $L = \lfloor 4(T/100)^{2/9} \rfloor$ per window (9 / 8 / 6).
+- Sharpe difference: delta-method test on $(\mu_a, \mu_b, E[x_a^2], E[x_b^2])$ with the Newey–West covariance; two-sided normal p.
+- Bootstrap: stationary, mean block 21 days, B = 10,000, seed 20260923; one index draw is shared by every series in a window.
+- CAPM α: the Phase 1 regression on the market excess return, with Newey–West standard errors (no degrees-of-freedom correction).
+
+**H1 (Sharpe vs EW, 7 tests).** For each core method $m \neq$ EW: $H_0$: $SR_m = SR_{EW}$ on the full window. Holm adjustment over the 7 raw p-values. NULL REJECTED iff adjusted p < 0.05 AND the test-window ΔSR has the full-window sign (otherwise NULL REJECTED, NOT ROBUST). An adjusted p in [0.05, 0.10) holds narrowly.
+
+**H1-all (descriptive).** All 28 core pairs with the same test, Benjamini–Hochberg at q = 0.10.
+
+**H2 (CAPM α, 23 tests).** For each strategy in the α family: $H_0$: α = 0 on the full window, $t = \hat\alpha / \mathrm{se}_{NW}$. Romano–Wolf step-down adjusted p from centred bootstrap statistics $t^* = (\alpha^* - \hat\alpha)/\mathrm{se}_{NW}$ on the shared indices. Verdict bands and the test-window sign condition as in H1. The members with Phase 1 OLS t ≥ 1.9 are labelled &#91;cluster&#93; in advance: MaxSharpe (S, LW, OAS), MDP (S, LW), HRP (S, LW, positional, ward). Holm and BH adjusted p and the unadjusted Newey–West t are descriptive.
+
+**Descriptive.** Performance table; bootstrap 95% percentile Sharpe intervals for the 10 core and reference runs in each window; the bootstrap p of each H1 difference as a cross-check; wealth and drawdown.
+
+**Honest limitations.**
+
+- The tests are asymptotic. In the design check the Sharpe-difference interval covered 0.948 with finite fourth moments and 0.93 with infinite kurtosis.
+- Power is low. In that check (correlation 0.8, 17 years) the ΔSR standard error was about 0.16, so an unadjusted rejection needs roughly 0.30 of annual Sharpe; Holm raises the bar. A NULL HOLDS verdict is not evidence of equal Sharpe ratios.
+- The α family is the Phase 1 search set. Designs rejected before any backtest (notebooks 02 and 03) are not in it, so the adjustment is a lower bound on the true multiplicity.
+- The &#91;cluster&#93; label was set from Phase 1 OLS t-statistics that had already been seen; it names the members, it does not change their test.
+- The test window is 3.3 years; its sign condition is a consistency check, not a test.'''
+
+[[hypothesis]]
+id = "H1_GMV"
+label = 'H1 (SR GMV(S) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR GMV(S) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_MaxSharpe"
+label = 'H1 (SR MaxSharpe(S) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR MaxSharpe(S) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_BMV"
+label = 'H1 (SR BMV(0.3) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR BMV(0.3) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_BL"
+label = 'H1 (SR BL(0.1) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR BL(0.1) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_MDP"
+label = 'H1 (SR MDP(S) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR MDP(S) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_ERC"
+label = 'H1 (SR ERC(S) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR ERC(S) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_HRP"
+label = 'H1 (SR HRP(S) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR HRP(S) − EW, full window; Holm over 7"
+rule_text = 'Holm p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_all"
+label = 'H1-all (descriptive, 28 core pairs)'
+kind = "descriptive"
+statistic = "delta-method HAC ΔSR t for all 28 core pairs, BH at q = 0.10"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "H2_GMV_S"
+label = 'H2 (α GMV(S) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_GMV_LW"
+label = 'H2 (α GMV(LW) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_GMV_OAS"
+label = 'H2 (α GMV(OAS) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MS_S"
+label = 'H2 (α MaxSharpe(S) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MS_LW"
+label = 'H2 (α MaxSharpe(LW) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MS_OAS"
+label = 'H2 (α MaxSharpe(OAS) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BL01_S"
+label = 'H2 (α BL(0.1,S) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BL01_LW"
+label = 'H2 (α BL(0.1,LW) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BL01_OAS"
+label = 'H2 (α BL(0.1,OAS) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BL02_S"
+label = 'H2 (α BL(0.2,S) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_EW"
+label = 'H2 (α EW = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BMV03"
+label = 'H2 (α BMV(0.3) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BMV05"
+label = 'H2 (α BMV(0.5) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MDP_S"
+label = 'H2 (α MDP(S) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MDP_LW"
+label = 'H2 (α MDP(LW) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_IV"
+label = 'H2 (α IV = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_ERC_S"
+label = 'H2 (α ERC(S) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_ERC_LW"
+label = 'H2 (α ERC(LW) = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_HRP_S"
+label = 'H2 (α HRP(S) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_HRP_LW"
+label = 'H2 (α HRP(LW) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_HRP_pos"
+label = 'H2 (α HRP[positional](S) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_HRP_ward"
+label = 'H2 (α HRP[ward](S) = 0) [cluster]'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_IVP"
+label = 'H2 (α IVP = 0)'
+kind = "adjusted_null"
+statistic = "CAPM α / se_NW, full window; Romano-Wolf over 23"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window α same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_raw"
+label = 'H2-raw (descriptive, OLS vs NW t; Holm and BH p)'
+kind = "descriptive"
+statistic = "OLS t, Newey-West t, Holm and BH adjusted p for the 23 α"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "CI"
+label = 'Sharpe intervals (descriptive)'
+kind = "descriptive"
+statistic = "bootstrap 95% percentile Sharpe intervals, 10 runs x 3 windows"
+rule_text = 'descriptive'
