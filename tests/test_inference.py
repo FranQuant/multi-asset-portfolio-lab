@@ -261,3 +261,27 @@ def test_check_reproduction_passes_and_raises():
     st.loc[("EW", "test (> split)"), "sharpe"] += 0.01
     with pytest.raises(AssertionError, match=r"REPRODUCTION GATE FAILED: EW test Sharpe 0.92 != 0.91"):
         check_reproduction(st, mapping)
+
+
+def test_evaluate_adjusted_null_bands(tmp_path):
+    reg = load_registration(_write_reg(tmp_path, 'kind = "adjusted_null"\n'))
+    cases = [
+        (0.0499, None, "NULL REJECTED"),
+        (0.01, True, "NULL REJECTED"),
+        (0.01, False, "NULL REJECTED, NOT ROBUST"),
+        (0.05, None, "NULL HOLDS NARROWLY"),
+        (0.05, False, "NULL HOLDS NARROWLY"),
+        (0.0999, None, "NULL HOLDS NARROWLY"),
+        (0.10, None, "NULL HOLDS"),
+        (0.80, False, "NULL HOLDS"),
+    ]
+    for p_adj, same_sign, expected in cases:
+        s = dict(display="d", p_adj=p_adj)
+        if same_sign is not None:
+            s["same_sign_test"] = same_sign
+        assert evaluate(reg, {"H": s})["verdict"].iloc[0] == expected
+
+
+def test_load_registration_rejects_rule_on_adjusted_null(tmp_path):
+    with pytest.raises(ValueError, match="rule"):
+        load_registration(_write_reg(tmp_path, 'kind = "adjusted_null"\nrule = "standard"\n'))

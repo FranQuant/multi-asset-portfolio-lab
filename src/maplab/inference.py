@@ -16,7 +16,7 @@ import pandas as pd
 from .contract import TRADING_DAYS
 from .data import find_repo_root
 
-HYPOTHESIS_KINDS = ("count", "null", "directional_t", "descriptive")
+HYPOTHESIS_KINDS = ("count", "null", "directional_t", "descriptive", "adjusted_null")
 # Optional per-hypothesis `rule` variants, by kind; absent = "standard".
 RULE_VARIANTS = {"count": ("standard", "no_2022"), "directional_t": ("standard", "full_t_only")}
 
@@ -272,6 +272,14 @@ def evaluate(reg: dict, stats: dict) -> pd.DataFrame:
                 verdict = "NOT ROBUST"
             else:
                 verdict = "NOT SUPPORTED"
+        elif kind == "adjusted_null":
+            p_adj = s["p_adj"]
+            if p_adj < 0.05:
+                verdict = "NULL REJECTED, NOT ROBUST" if s.get("same_sign_test") is False else "NULL REJECTED"
+            elif p_adj < 0.10:
+                verdict = "NULL HOLDS NARROWLY"
+            else:
+                verdict = "NULL HOLDS"
         rule_col = f"{h['rule_text']} [applied: {h['applied']}]" if "applied" in h else h["rule_text"]
         rows.append({"item": h["label"], "statistic": s["display"], "rule": rule_col, "verdict": verdict})
     return pd.DataFrame(rows, columns=["item", "statistic", "rule", "verdict"])

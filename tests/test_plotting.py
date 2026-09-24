@@ -19,6 +19,9 @@ from maplab.plotting import (  # noqa: E402
     concentration_panel,
     capital_vs_risk,
     cumulative_paired,
+    wealth_drawdown,
+    forest_plot,
+    pair_matrix,
 )
 
 UNIVERSE = ml.UNIVERSE
@@ -160,3 +163,46 @@ def test_cumulative_paired_lines_with_and_without_beta():
     assert len(axes[1].lines) == len(pairs) + 2
     assert len(axes[0].lines) == 0
     plt.close(fig0)
+
+
+def test_wealth_drawdown_smoke():
+    results, split_ts = make_results()
+    net = {name: r["net"] for name, r in results.items()}
+    rf = pd.Series(0.00008, index=results["EW"]["net"].index)
+    fig = wealth_drawdown(net, rf, split_ts)
+    assert isinstance(fig, Figure)
+    assert len(fig.axes) == 2
+    labels = [ln.get_label() for ln in fig.axes[0].lines]
+    assert "BIL (rf)" in labels and all(name in labels for name in net)
+    assert fig.axes[0].get_yscale() == "log"
+    plt.close(fig)
+
+
+def test_forest_plot_smoke():
+    df = pd.DataFrame({
+        "label": ["A(S)", "B(S)", "EW"] * 2,
+        "window": ["full"] * 3 + ["test"] * 3,
+        "d": [0.1, -0.2, 0.0, 0.3, -0.1, 0.05],
+    })
+    df["lo"], df["hi"] = df["d"] - 0.2, df["d"] + 0.2
+    fig = forest_plot(df, "label", "d", "lo", "hi", group="window", ref=0.0)
+    assert isinstance(fig, Figure)
+    assert len(fig.axes) == 1
+    assert [t.get_text() for t in fig.axes[0].get_yticklabels()] == ["A(S)", "B(S)", "EW"]
+    plt.close(fig)
+    fig = forest_plot(df[df["window"] == "full"], "label", "d", "lo", "hi")
+    assert len(fig.axes) == 1
+    plt.close(fig)
+
+
+def test_pair_matrix_smoke():
+    rng = np.random.default_rng(4)
+    A = rng.normal(size=(3, 3))
+    M = A - A.T
+    labels = ["A(S)", "B(S)", "EW"]
+    fig = pair_matrix(M, labels, "t")
+    assert isinstance(fig, Figure)
+    assert len(fig.axes) == 2  # heatmap + colorbar
+    assert len(fig.axes[0].texts) == 6  # diagonal blanked
+    assert [t.get_text() for t in fig.axes[0].get_xticklabels()] == labels
+    plt.close(fig)

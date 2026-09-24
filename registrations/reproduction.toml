@@ -30,3 +30,90 @@ test = 0.98
 full = 0.76
 train = 0.73
 test = 0.94
+
+# Phase 2 additions: the remaining alpha-family runs of notebooks 01-07.
+
+[GMV_ledoit_wolf]
+full = 0.70
+train = 0.67
+test = 0.82
+
+[GMV_oas]
+full = 0.64
+train = 0.62
+test = 0.76
+
+[MaxSharpe_ledoit_wolf]
+full = 0.73
+train = 0.63
+test = 1.05
+
+[MaxSharpe_oas]
+full = 0.73
+train = 0.62
+test = 1.10
+
+["BL_k0.1_ledoit_wolf"]
+full = 0.64
+train = 0.63
+test = 0.69
+
+["BL_k0.1_oas"]
+full = 0.64
+train = 0.62
+test = 0.69
+
+["BL_k0.2_sample"]
+full = 0.58
+train = 0.60
+test = 0.50
+
+["BetaMinVar_b0.3_sample"]
+full = 0.86
+train = 0.80
+test = 1.13
+
+["BetaMinVar_b0.5_sample"]
+full = 0.86
+train = 0.80
+test = 1.14
+
+[MDP_ledoit_wolf]
+full = 0.76
+train = 0.71
+test = 0.96
+
+[IV_sample]
+full = 0.72
+train = 0.71
+test = 0.75
+
+[ERC_ledoit_wolf]
+full = 0.77
+train = 0.73
+test = 0.96
+
+[HRP_sample]
+full = 0.64
+train = 0.60
+test = 0.82
+
+[HRP_ledoit_wolf]
+full = 0.64
+train = 0.61
+test = 0.80
+
+[HRP_positional_sample]
+full = 0.69
+train = 0.69
+test = 0.72
+
+[HRP_ward_sample]
+full = 0.65
+train = 0.63
+test = 0.73
+
+[IVP_sample]
+full = 0.61
+train = 0.62
+test = 0.55

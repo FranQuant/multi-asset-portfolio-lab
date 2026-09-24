@@ -294,3 +294,105 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
     if own_fig:
         fig.tight_layout()
     return ax.figure
+
+
+# ── Phase 2 comparison figures ──────────────────────────────────────────────
+
+def _line_style(label: str, styles: dict | None) -> dict:
+    """Line color for a run label: `styles` override, else METHOD_COLORS /
+    METHOD_STYLES by base name, else matplotlib's cycle (None)."""
+    if styles and label in styles:
+        return dict(styles[label])
+    base = _base_name(label)
+    color = METHOD_COLORS.get(base) or METHOD_STYLES.get(base, {}).get("color")
+    return {"color": color} if color is not None else {}
+
+
+def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(10, 8), title=None):
+    """Log-scale wealth (1 = start) with BIL wealth from `rf` (grey dashed)
+    on top, underwater drawdown below; `net` is label -> daily net Series."""
+    fig, (ax_w, ax_d) = plt.subplots(2, 1, figsize=figsize, sharex=True,
+                                     gridspec_kw={"height_ratios": [2, 1]})
+    start = end = None
+    for label, r in net.items():
+        wealth = (1.0 + r).cumprod()
+        dd = wealth / wealth.cummax() - 1.0
+        st = _line_style(label, styles)
+        ax_w.plot(wealth.index, wealth.to_numpy(), lw=1.1, label=label, **st)
+        ax_d.plot(dd.index, 100 * dd.to_numpy(), lw=0.9, label=label, **st)
+        start = r.index.min() if start is None else min(start, r.index.min())
+        end = r.index.max() if end is None else max(end, r.index.max())
+    rf_w = (1.0 + rf.loc[start:end]).cumprod()
+    ax_w.plot(rf_w.index, rf_w.to_numpy(), color="#999999", ls="--", lw=1.0, label="BIL (rf)")
+    ax_w.set_yscale("log")
+    ax_w.set_ylabel("wealth (1 = start, log scale)")
+    ax_d.set_ylabel("drawdown (%)")
+    ax_d.set_xlabel("date")
+    for ax in (ax_w, ax_d):
+        ax.axvline(split_ts, color="black", ls=":", lw=1)
+    ax_w.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8, borderaxespad=0)
+    if title is not None:
+        ax_w.set_title(title)
+    fig.tight_layout()
+    return fig
+
+
+def forest_plot(df, label_col, point, lo, hi, group=None, ref=None, figsize=None, title=None,
+                xlabel=None):
+    """Horizontal point + [lo, hi] interval per label; with `group` (e.g. the
+    window column) the groups are dodged around each label's row; optional
+    reference vertical line at `ref`."""
+    labels = list(dict.fromkeys(df[label_col]))
+    groups = list(dict.fromkeys(df[group])) if group is not None else [None]
+    if figsize is None:
+        figsize = (8, 0.45 * len(labels) * max(1, len(groups) * 0.6) + 1.2)
+    fig, ax = plt.subplots(figsize=figsize)
+    ypos = {lab: len(labels) - 1 - i for i, lab in enumerate(labels)}
+    width = 0.6
+    offsets = np.linspace(-width / 2, width / 2, len(groups)) if len(groups) > 1 else [0.0]
+    for g, off in zip(groups, offsets):
+        sub = df if g is None else df[df[group] == g]
+        y = np.array([ypos[lab] for lab in sub[label_col]]) + off
+        x = sub[point].to_numpy(dtype=float)
+        err = np.vstack([x - sub[lo].to_numpy(dtype=float), sub[hi].to_numpy(dtype=float) - x])
+        ax.errorbar(x, y, xerr=err, fmt="o", ms=4, capsize=2, lw=1, label=None if g is None else str(g))
+    if ref is not None:
+        ax.axvline(ref, color="black", ls="--", lw=0.8)
+    ax.set_yticks([ypos[lab] for lab in labels])
+    ax.set_yticklabels(list(labels))
+    if xlabel is not None:
+        ax.set_xlabel(xlabel)
+    if title is not None:
+        ax.set_title(title)
+    if group is not None:
+        ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8, borderaxespad=0)
+    fig.tight_layout()
+    return fig
+
+
+def pair_matrix(M, labels, title, fmt="{:.2f}", vmax=None, figsize=None, cmap="RdBu_r"):
+    """Annotated diverging heatmap of an antisymmetric pair matrix (e.g.
+    ΔSR t, row − column), diagonal blanked (NaN)."""
+    A = np.array(M.to_numpy() if hasattr(M, "to_numpy") else M, dtype=float)
+    np.fill_diagonal(A, np.nan)
+    labels = list(labels)
+    k = len(labels)
+    if vmax is None:
+        vmax = float(np.nanmax(np.abs(A))) if np.isfinite(A).any() else 1.0
+    if figsize is None:
+        figsize = (0.6 * k + 2.5, 0.6 * k + 1.5)
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(A, cmap=cmap, vmin=-vmax, vmax=vmax)
+    for i in range(k):
+        for j in range(k):
+            if np.isfinite(A[i, j]):
+                ax.text(j, i, fmt.format(A[i, j]), ha="center", va="center", fontsize=7)
+    ax.set_xticks(range(k))
+    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
+    ax.set_yticks(range(k))
+    ax.set_yticklabels(labels, fontsize=8)
+    ax.grid(False)
+    ax.set_title(title)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.tight_layout()
+    return fig
