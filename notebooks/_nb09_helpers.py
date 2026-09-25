@@ -3,7 +3,8 @@
 The statistics come from maplab.robust / maplab.inference; the Phase 1 run
 construction, summary table and excess-return windows are notebook 08's
 (_nb08_helpers). This module builds the lookback grid, the H3 descriptive
-table and figures F6/F7 that notebook 09 prints, asserts and plots.
+table, figures F6–F9 and the variance-ratio profile that notebook 09 prints,
+asserts and plots.
 """
 import numpy as np
 import pandas as pd
@@ -155,14 +156,16 @@ def bias_decomposition_bars(decomp_full: pd.DataFrame, figsize=(10, 4.5)):
     return fig
 
 
-def train_test_arrows(summary_tbl: pd.DataFrame, names, figsize=(8.5, 6)):
+def train_test_arrows(summary_tbl: pd.DataFrame, names, figsize=(8.5, 6), tol=(0.12, 0.04)):
     """Figure F9: one arrow per run from its train (ann_vol, ann_return) point
     (hollow) to its test point (filled), labelled at the test end. Colours from
     METHOD_COLORS by base name; a missing or already-used colour falls back to
-    the next unused colour of the matplotlib cycle."""
+    the next unused colour of the matplotlib cycle. A label whose test point is
+    within `tol` (share of the x and y data ranges) of a test point already
+    labelled in the same slot moves one slot (11 points) down."""
     fig, ax = plt.subplots(figsize=figsize)
     cycle = [c for c in plt.rcParams["axes.prop_cycle"].by_key()["color"]]
-    used, xs, ys = set(), [], []
+    used, pts = set(), []
     for name in names:
         tr = summary_tbl.loc[(name, "train (<= split)")]
         te = summary_tbl.loc[(name, "test (> split)")]
@@ -172,12 +175,21 @@ def train_test_arrows(summary_tbl: pd.DataFrame, names, figsize=(8.5, 6)):
         if c is None or c in used:
             c = next(cc for cc in cycle if cc not in used)
         used.add(c)
+        pts.append((name, train, test, c))
+    xs = [p[k][0] for p in pts for k in (1, 2)]
+    ys = [p[k][1] for p in pts for k in (1, 2)]
+    xr, yr = max(xs) - min(xs), max(ys) - min(ys)
+    placed = []
+    for name, train, test, c in pts:
         ax.plot(*train, "o", ms=6, mfc="none", mec=c, mew=1.2)
         ax.plot(*test, "o", ms=6, color=c)
         ax.annotate("", xy=test, xytext=train, arrowprops=dict(arrowstyle="->", color=c, lw=1.2))
-        ax.annotate(name, test, textcoords="offset points", xytext=(5, 3), fontsize=8, color=c)
-        xs += [train[0], test[0]]
-        ys += [train[1], test[1]]
+        slot = 0
+        while any(s == slot and abs(test[0] - x) <= tol[0] * xr and abs(test[1] - y) <= tol[1] * yr
+                  for x, y, s in placed):
+            slot += 1
+        placed.append((test[0], test[1], slot))
+        ax.annotate(name, test, textcoords="offset points", xytext=(5, 3 - 11 * slot), fontsize=8, color=c)
     for vals, setter in ((xs, ax.set_xlim), (ys, ax.set_ylim)):
         lo, hi = min(vals), max(vals)
         pad = 0.08 * (hi - lo)
