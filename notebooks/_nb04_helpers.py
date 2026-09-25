@@ -159,7 +159,7 @@ def weight_tables(panel, dates):
 def run_group(name):
     if "(OAS)" in name:
         return "sensitivity"
-    if name == "EW":
+    if name in ("EW", "60/40"):
         return "benchmark"
     return "registered"
 
