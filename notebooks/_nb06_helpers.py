@@ -77,7 +77,7 @@ def snapshot_tables(panel, dates):
 
 
 def mechanism_grid(panel, dates):
-    """Figure F2: cash weight vs. risk-contribution share, GMV/MDP/ERC/EW x
+    """Figure F2: capital weight vs. variance share, GMV/MDP/ERC/EW x
     dates. Returns (fig, grid_table)."""
     methods = ["GMV", "MDP", "ERC", "EW"]
     tickers = ml.UNIVERSE
@@ -110,9 +110,9 @@ def mechanism_grid(panel, dates):
             colors_cash = ["#c0392b" if t == "UUP" else "#1f4e79" for t in tickers]
             colors_rc = ["#c0392b" if t == "UUP" else "#2e7d32" for t in tickers]
             ax.bar(x - 0.2, w, width=0.4, color=colors_cash, alpha=0.9,
-                   label="cash weight" if r == 0 and c == 0 else None)
+                   label="capital weight" if r == 0 and c == 0 else None)
             ax.bar(x + 0.2, rc_share, width=0.4, color=colors_rc, alpha=0.6,
-                   label="risk share" if r == 0 and c == 0 else None)
+                   label="variance share" if r == 0 and c == 0 else None)
             ax.axhline(one_over_n, color="black", ls="--", lw=0.8)
             ax.set_title(f"{asof.date()} - {name}", fontsize=8)
             if r == 2:
@@ -126,7 +126,7 @@ def mechanism_grid(panel, dates):
                 "UUP_beta_p": float(beta_p[iU]), "effN": ml.diagnostics.effective_n(w),
             })
 
-    fig.suptitle("Cash weight vs. risk-contribution share (dashed = 1/13)")
+    fig.suptitle("Capital weight vs. variance share (dashed = 1/13)")
     plt.tight_layout()
 
     grid_table = pd.DataFrame(grid_rows).set_index(["asof", "method"])

@@ -108,7 +108,10 @@ def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=
     for i, tkr in enumerate(tickers):
         grp = GROUP_OF[tkr]
         is_hl = tkr == highlight
-        ax.scatter(asset_vol[i], mu_np[i], s=30, color=group_colors[grp], zorder=5 if is_hl else 2)
+        ax.scatter(asset_vol[i], mu_np[i], s=45 if is_hl else 30,
+                   color="#c0392b" if is_hl else group_colors[grp],
+                   edgecolors="black" if is_hl else "none", linewidths=1.0 if is_hl else 0.0,
+                   zorder=5 if is_hl else 2)
         ax.annotate(tkr, (asset_vol[i], mu_np[i]), fontsize=6,
                     xytext=(3, 3), textcoords="offset points",
                     color="#c0392b" if is_hl else "#666666",
@@ -255,10 +258,11 @@ def capital_vs_risk(weights: dict, Sigma, highlight="UUP", title=None, figsize=N
 
 
 def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = None, mkt_excess=None,
-                      ax=None, title=None, ylabel="cumulative diff (%)", legend_kw=None):
+                      ax=None, title=None, ylabel="cumulative diff (%)", legend_kw=None, colors=None):
     """Cumulative paired daily differences in % (nb06 F5 / nb07 F5). With
     `beta` ("a - b" -> beta_hat) and `mkt_excess`: solid = beta-adjusted,
-    dashed = total; otherwise solid totals only."""
+    dashed = total; otherwise solid totals only. `colors` ("a - b" -> color)
+    fixes a pair's line colour; pairs not in it use matplotlib's cycle."""
     own_fig = ax is None
     if own_fig:
         fig, ax = plt.subplots(figsize=(9.5, 5))
@@ -271,7 +275,8 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
             idx = diff.index.intersection(mkt_excess.index)
             adj = (diff.loc[idx] - beta_hat * mkt_excess.loc[idx]).cumsum() * 100
             total = diff.cumsum() * 100
-            line, = ax.plot(adj.index, adj.to_numpy(), lw=1.1, label=pair_key)
+            ckw = {"color": colors[pair_key]} if colors and pair_key in colors else {}
+            line, = ax.plot(adj.index, adj.to_numpy(), lw=1.1, label=pair_key, **ckw)
             ax.plot(total.index, total.to_numpy(), lw=0.8, ls="--", color=line.get_color())
         ax.axvline(split_ts, color="black", ls=":", lw=1)
         ax.axhline(0, color="black", lw=0.6)
@@ -283,7 +288,9 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
         for a_name, b_name in pairs:
             diff = paired_series[(a_name, b_name)]
             cum = diff.cumsum() * 100
-            ax.plot(cum.index, cum.to_numpy(), lw=1.1, label=f"{a_name} - {b_name}")
+            key = f"{a_name} - {b_name}"
+            ckw = {"color": colors[key]} if colors and key in colors else {}
+            ax.plot(cum.index, cum.to_numpy(), lw=1.1, label=key, **ckw)
         ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
         ax.axhline(0, color="black", lw=0.6)
         ax.set_ylabel(ylabel)
