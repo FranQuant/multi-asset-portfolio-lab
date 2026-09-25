@@ -11,6 +11,7 @@ from maplab import (
     GMV, MaxSharpe, BlackLitterman, EqualWeight, BetaTargetMinVar, MostDiversified,
     EqualRiskContribution, HierarchicalRiskParity, backtest, summary,
 )
+from maplab import FixedWeight
 
 # Display label -> registrations/reproduction.toml key, in α-family order.
 REPRO_KEYS = {
@@ -142,3 +143,47 @@ def drawdown_dates(results: dict, names) -> pd.DataFrame:
         rows.append({"strategy": name, "max_dd": float(dd.min()), "peak": peak.date(),
                      "trough": trough.date(), "recovery": rec[0].date() if len(rec) else pd.NaT})
     return pd.DataFrame(rows).set_index("strategy")
+
+
+# ── 60/40 benchmark and active statistics (review pass) ─────────────────────
+
+BENCH = ["60/40"]
+BENCH_REPRO_KEYS = {"60/40": "SixtyForty_SPY_IEF"}
+
+
+def make_benchmarks() -> dict:
+    """60/40 (SPY/IEF), constructed as in notebooks 01-07."""
+    return {"60/40": FixedWeight({"SPY": 0.6, "IEF": 0.4}, name="60/40")}
+
+
+def build_benchmarks(simple_returns, panel) -> dict:
+    """Backtest the benchmark runs: label -> {net, wlog, diag, strat}."""
+    results = {}
+    for name, strat in make_benchmarks().items():
+        net, wlog, diag = backtest(strat, simple_returns, panel)
+        results[name] = {"net": net, "wlog": wlog, "diag": diag, "strat": strat}
+    return results
+
+
+def active_stats(runs: dict, names, benches, split_ts) -> pd.DataFrame:
+    """Per benchmark b and run m (m != b): annualized active return (mean of
+    daily net_m - net_b x TRADING_DAYS) and tracking error (sd, ddof=1, x
+    sqrt(TRADING_DAYS)) on the full and test (> split) windows, and the
+    full-window correlation of daily net returns. Descriptive only."""
+    td = ml.TRADING_DAYS
+    rows = []
+    for b in benches:
+        rb = runs[b]["net"]
+        for m in names:
+            if m == b:
+                continue
+            rm = runs[m]["net"]
+            if not rm.index.equals(rb.index):
+                raise ValueError(f"active_stats: {m} and {b} net indices differ")
+            d = rm - rb
+            dt = d.loc[d.index > split_ts]
+            rows.append({"benchmark": b, "strategy": m,
+                         "active_ret": float(d.mean() * td), "TE": float(d.std(ddof=1) * td ** 0.5),
+                         "corr": float(rm.corr(rb)),
+                         "active_ret_test": float(dt.mean() * td), "TE_test": float(dt.std(ddof=1) * td ** 0.5)})
+    return pd.DataFrame(rows).set_index(["benchmark", "strategy"])
