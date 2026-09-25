@@ -561,3 +561,15 @@ def f7_summary_row(f7_table, mask_or_date):
         "median_w_UUP_HRP": float(sub["w_UUP_HRP"].median()),
         "root_singleton_share": float(sub["root_singleton"].mean()),
     }
+
+
+def run_group(name):
+    if name == "HRP(S)":
+        return "registered"
+    if name in ("HRP(LW)", "HRP[pos](S)", "HRP[ward](S)"):
+        return "sensitivity"
+    if name == "IVP":
+        return "reference"
+    if name in ("EW", "60/40"):
+        return "benchmark"
+    return "reproduction gate"
