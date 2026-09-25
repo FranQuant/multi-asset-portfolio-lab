@@ -59,17 +59,19 @@ def hit_rate(r: pd.Series) -> float:
     return float((r > 0).mean())
 
 
-def ann_turnover(turnover_per_rebalance: pd.Series) -> float:
+def ann_turnover(turnover_per_rebalance: pd.Series, *, initial_build: bool = True) -> float:
     """Annualized one-way turnover from the per-rebalance turnover series.
 
     Exact, not inferred: average one-way turnover per rebalance × the actual
     number of rebalances per year implied by the calendar (≈12 for monthly).
-    Excludes the first rebalance (turnover from a zero portfolio is just the
-    initial build, not ongoing trading).
+    With `initial_build=True` (default) the first rebalance is excluded
+    (turnover from a zero portfolio is just the initial build, not ongoing
+    trading). Pass False for a window that starts after the build (e.g. a
+    test slice): every entry is then ongoing trading and all are averaged.
     """
     if turnover_per_rebalance is None or len(turnover_per_rebalance) < 2:
         return np.nan
-    ongoing = turnover_per_rebalance.iloc[1:]
+    ongoing = turnover_per_rebalance.iloc[1:] if initial_build else turnover_per_rebalance
     idx = turnover_per_rebalance.index
     years = (idx[-1] - idx[0]).days / 365.25
     rebals_per_year = (len(turnover_per_rebalance) - 1) / years if years > 0 else np.nan
@@ -89,6 +91,16 @@ def summary(
         "max_dd": max_drawdown(r),
         "calmar": calmar(r),
         "hit_rate": hit_rate(r),
-        "ann_turnover": ann_turnover(turnover_per_rebalance)
-        if turnover_per_rebalance is not None else np.nan,
+        "ann_turnover": _window_turnover(r, turnover_per_rebalance),
     }
+
+
+def _window_turnover(r: pd.Series, turnover_per_rebalance: pd.Series | None) -> float:
+    """Annual turnover for the window of `r`. The first entry is the initial
+    build only if its label is on or before the first return date (the book
+    did not exist before it); a slice that starts later, such as the test
+    window, keeps every entry."""
+    if turnover_per_rebalance is None or len(turnover_per_rebalance) == 0 or len(r) == 0:
+        return np.nan
+    initial = bool(turnover_per_rebalance.index[0] <= r.index[0])
+    return ann_turnover(turnover_per_rebalance, initial_build=initial)
