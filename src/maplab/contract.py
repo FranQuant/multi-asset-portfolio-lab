@@ -20,9 +20,8 @@ ASSET_GROUPS: dict[str, list[str]] = {
 
 UNIVERSE: list[str] = [t for group in ASSET_GROUPS.values() for t in group]
 
-# Sub-universe an equity cross-sectional model (factor tilts, CAPM) may use.
-# For now this is just the equity group; notebook 02 will redefine its own
-# cross-section as needed.
+# The equity group as a named sub-universe. Notebook 02's beta and factor
+# diagnostics run on all 13 assets, not on this sleeve.
 EQUITY_SLEEVE: list[str] = ASSET_GROUPS["equity"]
 
 # BIL (1-3m T-bills) is the risk-free numeraire, deliberately NOT in UNIVERSE,
