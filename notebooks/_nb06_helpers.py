@@ -133,20 +133,6 @@ def mechanism_grid(panel, dates):
     return fig, grid_table
 
 
-def identity_a_maxdev(panel, asof_2022):
-    """Identity A check at one date: max|w_i - 1/(N*beta_i,p)| for ERC."""
-    tickers = ml.UNIVERSE
-    _, Sigma_2022b = GMV(cov_estimator=ml.sample_cov)._estimate(panel, asof_2022)
-    Sigma_2022b = Sigma_2022b.reindex(index=tickers, columns=tickers)
-    Sigma_np_2022b = Sigma_2022b.to_numpy()
-    w_erc_2022b, _ = _erc_long_only(Sigma_2022b, "F2diag", asof_2022)
-    var_2022b = float(w_erc_2022b @ Sigma_np_2022b @ w_erc_2022b)
-    beta_2022b = (Sigma_np_2022b @ w_erc_2022b) / var_2022b
-    rhs = 1.0 / (len(tickers) * beta_2022b)
-
-    return float(np.max(np.abs(w_erc_2022b - rhs)))
-
-
 def mechanism_checks(panel, rdates):
     """§5 mechanism checks over all rebalances x {sample, Ledoit-Wolf},
     recomputed fresh. Returns mech5_table (one row per estimator)."""
@@ -213,3 +199,15 @@ def mechanism_checks(panel, rdates):
         })
 
     return pd.DataFrame(mech5_rows).set_index("estimator")
+
+
+def run_group(name):
+    if name == "ERC(S)":
+        return "registered"
+    if name == "ERC(LW)":
+        return "sensitivity"
+    if name == "IV":
+        return "reference"
+    if name in ("EW", "60/40"):
+        return "benchmark"
+    return "reproduction gate"
