@@ -109,7 +109,7 @@ def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
         ax.axhline(0, color="black", lw=0.8)
         ax.set_xticks(x)
         ax.set_xticklabels(tickers, rotation=90, fontsize=7)
-        ax.set_title("GMV" if name == "GMV" else "MaxSharpe (unconstrained = tangency)")
+        ax.set_title("GMV" if name == "GMV" else "MSR (unconstrained = tangency)")
         ax.set_ylabel("weight")
     axes[0].legend(fontsize=8)
     fig.suptitle("Unconstrained vs long-only weights at the snapshot — independent y-axes "
@@ -117,7 +117,7 @@ def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
     fig.tight_layout()
 
     cols = {"GMV unconstrained": w_gmv_unc, "GMV long-only": pairs["GMV"][1],
-            "Tangency unconstrained": w_tan_unc, "MaxSharpe long-only": pairs["MaxSharpe"][1]}
+            "MSR unconstrained": w_tan_unc, "MSR long-only": pairs["MaxSharpe"][1]}
     table = pd.DataFrame({name: {"gross leverage Σ|w|": float(w.abs().sum()),
                                  "sum of negative weights": float(w[w < 0].sum()),
                                  "max |w|": float(w.abs().max())} for name, w in cols.items()})
