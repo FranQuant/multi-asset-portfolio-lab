@@ -13,7 +13,7 @@ from maplab.models import _hrp_long_only
 
 def clustered_corr_figure(log_returns):
     """Full-sample correlation heatmap in nb07's HRP leaf order (single
-    linkage, distance of distances), values annotated, UUP row/column boxed."""
+    linkage, distance of distances), values annotated, UUP row/column boxed. Also returns the root split as two sorted ticker lists."""
     Sigma = ml.sample_cov(log_returns[ml.UNIVERSE])
     _, info = _hrp_long_only(Sigma, "nb00", pd.Timestamp("2026-04-30"))
     order_tickers = [Sigma.columns[i] for i in info["order"]]
@@ -40,7 +40,14 @@ def clustered_corr_figure(log_returns):
                  f"({log_returns.index.min().date()} → {log_returns.index.max().date()})")
     fig.colorbar(im, ax=ax, shrink=0.7, label="corr")
     fig.tight_layout()
-    return fig, order_tickers
+
+    cols = list(Sigma.columns)
+
+    def _names(side):
+        return sorted(cols[i] if isinstance(i, (int, np.integer)) else i for i in side)
+
+    root = next((_names(L), _names(R)) for L, R, _ in info["splits"] if len(L) + len(R) == n)
+    return fig, order_tickers, root
 
 
 def uup_rolling_figure(panel, rdates, split_ts):
@@ -64,9 +71,9 @@ def uup_rolling_figure(panel, rdates, split_ts):
 
     fig, axes = plt.subplots(3, 1, figsize=(9.5, 9), sharex=True)
     specs = [
-        ("uup_mean_corr", "#c0392b", "mean corr of UUP\nwith the other 12", "(a) UUP mean pairwise correlation"),
-        ("sigma_UUP", "#c0392b", "annualized vol", "(b) sigma_UUP"),
-        ("rho_bar_rest", "#2c3e50", "mean pairwise corr\n(12 non-UUP)", "(c) rho_bar_rest"),
+        ("uup_mean_corr", "#c0392b", "mean corr of UUP\nwith the other 12", r"(a) $\bar\rho_U$: UUP mean correlation with the other 12"),
+        ("sigma_UUP", "#c0392b", "annualized vol", r"(b) $\sigma_U$"),
+        ("rho_bar_rest", "#2c3e50", "mean pairwise corr\n(12 non-UUP)", r"(c) $\bar\rho_{\mathrm{rest}}$: mean correlation among the other 12"),
     ]
     for ax, (col, color, ylabel, title) in zip(axes, specs):
         ax.plot(table.index, table[col], color=color, lw=1.1)
