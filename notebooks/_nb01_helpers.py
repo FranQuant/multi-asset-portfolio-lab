@@ -61,7 +61,7 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     ew_ret = float(ew_w @ mu_np)
     ew_vol = float(np.sqrt(ew_w @ Sigma_np @ ew_w))
     ax.scatter([ew_vol], [ew_ret], marker="D", s=130, edgecolors="black", linewidths=1.0,
-               color=ml.FAMILY_COLORS["Benchmark"], zorder=4, label="EqualWeight")
+               color=ml.FAMILY_COLORS["Benchmark"], zorder=4, label="EW")
 
     w_6040 = pd.Series(0.0, index=Sigma.columns)
     w_6040[["SPY", "IEF"]] = [0.6, 0.4]
