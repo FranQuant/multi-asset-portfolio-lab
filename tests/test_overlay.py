@@ -180,3 +180,88 @@ def test_validation_errors():
         vol_overlay(base, rf, target="fixed", fixed_target=0.0)
     with pytest.raises(ValueError):
         vol_overlay(base, rf, window=30, min_history=20)
+
+
+def _month_starts(idx):
+    per = idx.to_period("M")
+    ms = np.ones(len(idx), dtype=bool)
+    ms[1:] = per[1:] != per[:-1]
+    return ms
+
+
+def test_daily_default_unchanged():
+    base, rf = make_series()
+    n0, c0, d0 = vol_overlay(base, rf)
+    n1, c1, d1 = vol_overlay(base, rf, update="daily")
+    pd.testing.assert_series_equal(n0, n1, check_exact=True)
+    pd.testing.assert_series_equal(c0, c1, check_exact=True)
+    pd.testing.assert_series_equal(d0["turnover"], d1["turnover"], check_exact=True)
+    assert d0["total_cost"] == d1["total_cost"]
+    assert d0["params"]["update"] == "daily"
+    pd.testing.assert_series_equal(d0["target_c"], c0, check_exact=True, check_names=False)
+
+
+def test_month_end_identity_when_target_huge():
+    base, rf = make_series()
+    net, h, diag = vol_overlay(base, rf, fixed_target=1e9, target="fixed", update="month_end")
+    assert (h == 1.0).all()
+    pd.testing.assert_series_equal(net, base, check_exact=True)
+    assert diag["total_cost"] == 0.0
+    assert diag["params"]["update"] == "month_end"
+
+
+def test_month_end_trades_only_on_month_starts():
+    base, rf = make_series()
+    _, _, diag = vol_overlay(base, rf, update="month_end")
+    ms = _month_starts(base.index)
+    assert (diag["turnover"].to_numpy()[~ms] == 0.0).all()
+    assert (diag["turnover"].to_numpy()[ms] > 0).any()
+
+
+def test_month_end_target_on_month_starts():
+    base, rf = make_series()
+    _, h, diag = vol_overlay(base, rf, update="month_end")
+    _, _, dd = vol_overlay(base, rf, update="daily")
+    ms = _month_starts(base.index)
+    pos = np.flatnonzero(ms)
+    pos = pos[pos >= 252]
+    assert len(pos) > 5
+    np.testing.assert_array_equal(h.to_numpy()[pos], diag["target_c"].to_numpy()[pos])
+    np.testing.assert_array_equal(diag["target_c"].to_numpy()[pos], dd["target_c"].to_numpy()[pos])
+    assert (h.iloc[pos] < 1.0).any()
+
+
+def test_month_end_drift_between_month_starts():
+    base, rf = make_series()
+    _, h, _ = vol_overlay(base, rf, update="month_end")
+    ms = _month_starts(base.index)
+    hv, r, f = h.to_numpy(), base.to_numpy(), rf.to_numpy()
+    checked = 0
+    for t in range(1, len(hv)):
+        if ms[t]:
+            continue
+        g = hv[t - 1] * r[t - 1] + (1 - hv[t - 1]) * f[t - 1]
+        d = hv[t - 1] * (1 + r[t - 1]) / (1 + g)
+        assert np.isclose(hv[t], d, rtol=1e-12, atol=0)
+        checked += 1
+    assert checked > 500
+    assert (hv[252:] != 1.0).any()
+
+
+def test_month_end_no_lookahead():
+    base, rf = make_series()
+    ms = _month_starts(base.index)
+    k = 400
+    assert not ms[k]
+    _, h0, _ = vol_overlay(base, rf, update="month_end")
+    base2, rf2 = base.copy(), rf.copy()
+    base2.iloc[k:] += 0.05
+    rf2.iloc[k:] += 0.001
+    _, h1, _ = vol_overlay(base2, rf2, update="month_end")
+    pd.testing.assert_series_equal(h0.iloc[: k + 1], h1.iloc[: k + 1], check_exact=True)
+
+
+def test_update_validation():
+    base, rf = make_series(n=400)
+    with pytest.raises(ValueError):
+        vol_overlay(base, rf, update="weekly")
