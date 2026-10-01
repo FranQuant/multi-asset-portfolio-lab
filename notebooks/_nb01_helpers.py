@@ -12,13 +12,6 @@ from maplab import GMV, MaxSharpe
 from maplab.models import gmv_closed_form, tangency_closed_form
 
 
-def effective_n_stats(n_assets: int, alpha: float, size: int = 20_000, seed: int = 7) -> dict:
-    rng = np.random.default_rng(seed)
-    w = rng.dirichlet(np.full(n_assets, alpha), size=size)
-    eff_n = 1.0 / np.sum(w ** 2, axis=1)
-    return {"alpha": alpha, "median_eff_n": float(np.median(eff_n)), "median_max_w": float(np.median(w.max(axis=1)))}
-
-
 def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     """Long-only efficient frontier at the snapshot: Monte Carlo backdrop,
     assets, efficient/inefficient branch, EW/GMV/MaxSharpe markers, CML."""
