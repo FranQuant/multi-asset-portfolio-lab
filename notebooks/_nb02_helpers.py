@@ -192,16 +192,3 @@ def design_d3(log_returns, excess, factors3, asof_dates):
         out.append((asof, w, ok, msg))
     return out
 
-
-def ex_ante_beta_figure(ex_ante_beta, split_ts):
-    """Ex-ante portfolio beta of BetaMinVar(β ≥ 0.3) at each rebalance."""
-    fig, ax = plt.subplots(figsize=(9, 3.5))
-    ax.plot(ex_ante_beta.index, ex_ante_beta.to_numpy(), color="#1f4e79", lw=1.2)
-    ax.axhline(0.3, color="#b33", ls="--", lw=1, label=r"$\beta$ target = 0.3")
-    ax.axvline(split_ts, color="black", ls=":", lw=1)
-    ax.set_ylabel(r"ex-ante portfolio $\beta$")
-    ax.set_title(r"BetaMinVar($\beta \geq 0.3$) — achieved $\beta$ at each rebalance")
-    ax.legend(fontsize=8)
-    plt.tight_layout()
-    return fig
-
