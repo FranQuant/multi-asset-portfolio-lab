@@ -31,6 +31,7 @@ from .models import EqualRiskContribution, risk_contributions
 from .models import HierarchicalRiskParity
 from .models import InverseVol, InverseVariance
 from .models import FixedWeight
+from .overlay import vol_overlay
 from . import diagnostics, inference
 from . import robust
 from .plotting import apply_style, FAMILY_COLORS
@@ -53,4 +54,5 @@ __all__ = [
     "HierarchicalRiskParity",
     "InverseVol", "InverseVariance",
     "FixedWeight",
+    "vol_overlay",
 ]

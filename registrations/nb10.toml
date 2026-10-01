@@ -1,0 +1,169 @@
+notebook = "notebooks/10_vol_overlay.ipynb"
+provenance = "registered before any Phase 3 notebook output; design agreed 2026-09-29; read-only pre-check (/tmp/p3_precheck, 2026-09-30) printed only exposure c, sigma*, overlay turnover and cost drag — no return, Sharpe, volatility or drawdown of any overlay series; package at 6c35693 (vol_overlay a632671 + month_end update)"
+text = '''
+## §1 PRE-REGISTRATION
+
+Registered **before** any cell below computes a Phase 3 statistic. Internal pre-registration: committed to git before the notebook (see history); not an external registry.
+
+**Overlay.** For each series m: r_VMP = c_t·r_m + (1 − c_t)·r_BIL − cost_t, with c_t = min(1, σ*_t / σ̂_{t−1}); σ̂ = 21-day std of daily excess returns (annualised); σ* = expanding mean of σ̂ through t−1; c = 1 during a 252-day warm-up; daily updates; 10 bps one-way on the exact risky ↔ BIL trade including drift. No leverage, no floor. Parameters fixed a priori from the literature, not tuned.
+
+**Runs.** Core (as nb08): EW, GMV(S), MaxSharpe(S), BMV(0.3), BL(0.1,S), MDP(S), ERC(S), HRP(S); each base and its overlay VMP(m). Benchmark: 60/40 (SPY/IEF) and VMP(60/40), descriptive.
+
+**Data and windows.** Daily net returns in excess of BIL. Full = 2010-02-02 (first live overlay date) → 2026-04-30; train ≤ 2022-12-31; test 2023+.
+
+**Methods (as nb08).** Delta-method Sharpe difference with Newey–West covariance, lag ⌊4(T/100)^{2/9}⌋ per window; stationary bootstrap, mean block 21, B = 10,000, seed 20260923, one shared index draw per window; Romano–Wolf step-down on centred t* = (ΔSR* − ΔSR)/se_NW.
+
+**H1 (overlay vs base, 8 tests).** For each core m: H0: SR(VMP(m)) = SR(m), full window. Romano–Wolf over the 8. NULL REJECTED iff adjusted p < 0.05 AND the test-window ΔSR has the full-window sign (otherwise NULL REJECTED, NOT ROBUST); adjusted p in [0.05, 0.10) holds narrowly. Holm descriptive.
+
+**H2 (overlay vs 60/40, 8 tests).** For each core m: H0: SR(VMP(m)) = SR(60/40), full window. Same test, adjustment and verdict bands.
+
+**Descriptive.** Performance table (ann. return, vol, Sharpe, max drawdown, Calmar, turnover, cost drag) for base, VMP and benchmarks in each window; exposure statistics (mean c, share braking, min c); drawdown and exposure through 2020-02/04 and 2022. Sensitivities, never tested: σ̂ window 63; inverse variance; cap 1.5 financed at BIL (optimistic: no borrowing spread); month-end updates.
+
+**Honest limitations.**
+
+- Priors are not blank: base results (Phases 1–2) and an earlier, flawed VMP study (full-sample σ̄, free leverage, no overlay costs) were seen before this design.
+- The pre-check showed overlay cost drag of 18–27 bps/yr; the daily design was kept as agreed, month-end updates are a sensitivity.
+- Tests are asymptotic; power is limited, though VMP(m) and m are highly correlated (c = 1 on most days), which narrows the ΔSR standard error.
+'''
+
+[[hypothesis]]
+id = "H1_EW"
+label = 'H1 (SR VMP(EW) = SR EW)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(EW) − EW, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_GMV"
+label = 'H1 (SR VMP(GMV(S)) = SR GMV(S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(GMV(S)) − GMV(S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_MaxSharpe"
+label = 'H1 (SR VMP(MaxSharpe(S)) = SR MaxSharpe(S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(MaxSharpe(S)) − MaxSharpe(S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_BMV"
+label = 'H1 (SR VMP(BMV(0.3)) = SR BMV(0.3))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(BMV(0.3)) − BMV(0.3), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_BL"
+label = 'H1 (SR VMP(BL(0.1,S)) = SR BL(0.1,S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(BL(0.1,S)) − BL(0.1,S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_MDP"
+label = 'H1 (SR VMP(MDP(S)) = SR MDP(S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(MDP(S)) − MDP(S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_ERC"
+label = 'H1 (SR VMP(ERC(S)) = SR ERC(S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(ERC(S)) − ERC(S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H1_HRP"
+label = 'H1 (SR VMP(HRP(S)) = SR HRP(S))'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(HRP(S)) − HRP(S), full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_EW"
+label = 'H2 (SR VMP(EW) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(EW) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_GMV"
+label = 'H2 (SR VMP(GMV(S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(GMV(S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MaxSharpe"
+label = 'H2 (SR VMP(MaxSharpe(S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(MaxSharpe(S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BMV"
+label = 'H2 (SR VMP(BMV(0.3)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(BMV(0.3)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_BL"
+label = 'H2 (SR VMP(BL(0.1,S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(BL(0.1,S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_MDP"
+label = 'H2 (SR VMP(MDP(S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(MDP(S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_ERC"
+label = 'H2 (SR VMP(ERC(S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(ERC(S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "H2_HRP"
+label = 'H2 (SR VMP(HRP(S)) = SR 60/40)'
+kind = "adjusted_null"
+statistic = "delta-method HAC ΔSR VMP(HRP(S)) − 60/40, full window from 2010-02-02; Romano–Wolf over 8"
+rule_text = 'RW p < 0.05 rejects (narrowly < 0.10); test-window ΔSR same sign'
+evaluated = true
+
+[[hypothesis]]
+id = "D_perf"
+label = 'Descriptive: performance, exposure, episodes'
+kind = "descriptive"
+statistic = "performance table per window; mean c, share braking, min c; 2020 and 2022 episodes"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "D_sens"
+label = 'Descriptive: sensitivities'
+kind = "descriptive"
+statistic = "window 63; inverse variance; cap 1.5 financed at BIL; month-end updates"
+rule_text = 'descriptive'
