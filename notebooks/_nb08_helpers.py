@@ -86,7 +86,7 @@ def build_runs(simple_returns, panel) -> dict:
 
 
 def summary_table(results: dict, names, split_ts, rf_daily) -> pd.DataFrame:
-    """Phase 1 summary table (nb07 §4 windows and columns) for `names`."""
+    """Phase 1 summary table (nb07 §6.1 windows and columns) for `names`."""
     rows = []
     for name in names:
         net = results[name]["net"]

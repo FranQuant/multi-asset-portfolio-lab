@@ -118,7 +118,7 @@ def long_only_frontier(Sigma, mu, n_points: int = 60) -> tuple[np.ndarray, np.nd
 
 def diversification_table(weights: dict, Sigma, highlight: str = "UUP", tickers=None) -> pd.DataFrame:
     """One row per weight vector: w_<highlight>, effN, n_uncorr, max_RC_share,
-    DR, exante_vol (nb07 §3.2). `tickers` defaults to Sigma's columns."""
+    DR, exante_vol (nb07 §5.2). `tickers` defaults to Sigma's columns."""
     if tickers is None:
         if not isinstance(Sigma, pd.DataFrame):
             raise ValueError("diversification_table: pass tickers when Sigma is not a DataFrame")

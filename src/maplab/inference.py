@@ -1,7 +1,7 @@
 """Inference helpers and pre-registration machinery shared by the notebooks.
 
 The statistics (OLS, paired differences, CAPM / diff-regression, β
-decomposition, verdict rules) are lifted verbatim from notebook 07 §6.4–§6.7
+decomposition, verdict rules) are lifted verbatim from notebook 07 (§6.2, verdict table)
 and its helper cell; `sharpe_se` from notebook 06. Registrations live in
 <repo>/registrations/*.toml and are applied mechanically by `evaluate`.
 """
@@ -166,7 +166,7 @@ def beta_decomposition(capm: pd.DataFrame, paired: pd.DataFrame, diff_capm: pd.D
 
 
 def format_beta_decomposition(decomp: dict, capm: pd.DataFrame, diff_capm: pd.DataFrame) -> str:
-    """The nb07 §6.5 β-decomposition printout, as one string."""
+    """The nb07 §6.2 β-decomposition printout, as one string."""
     lines = []
     for pair_key, r in decomp.items():
         a_name, b_name = r["a_name"], r["b_name"]
