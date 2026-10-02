@@ -1,0 +1,56 @@
+notebook = "notebooks/11_sharpe_inference.ipynb"
+provenance = "DESCRIPTIVE registration written after an exploratory /tmp run on 2026-10-02 (extras (c): same data, same formulas), so it fixes the design for reproducibility but is not a blind pre-registration; package at 24a9bf4 (maplab.sharpe)"
+text = '''
+## §1 REGISTRATION
+
+Written **after** an exploratory run of the same data and formulas (2026-10-02); it fixes the design for reproducibility. It is descriptive, not a blind pre-registration, and no hypothesis below carries a verdict.
+
+**Question.** How much can 17 years of daily data tell us about these methods?
+
+**Runs.** Core 8 (EW, GMV(S), MaxSharpe(S), BMV(0.3), BL(0.1,S), MDP(S), ERC(S), HRP(S)) + 60/40; the α family of 23 Phase 1 runs for the search deflation.
+
+**Data.** Daily net returns in excess of BIL, as nb08; windows full / train / test (T = 4338 / 3504 / 834).
+
+**Methods.** Per-observation (daily) Sharpe; generalized variance (López de Prado, Lipton & Zoonekynd 2026, eq. 2–5) with sample skew, Pearson kurtosis and lag-1 autocorrelation; Newey–West single-Sharpe standard error as a cross-check; α = 0.05 throughout.
+
+- **D1.** PSR vs 0 and MinTRL per run and window.
+- **D2.** Power vs 0 for annual SR1 ∈ {0.25, 0.5, 0.75}, and years to 80% power.
+- **D3 (our adaptation, not in the paper).** Power of nb08's H1 Sharpe-difference tests vs EW at ΔSR ∈ {0.1, 0.2, 0.3}, unadjusted and at Bonferroni α/7, using nb08's Newey–West se, and years to 80% power assuming se ∝ 1/√years.
+- **D4.** Deflated Sharpe ratio of the best of the 23 runs (paper route, eq. 28–30) for K = 23 and for effective K (trial clustering, seed 20261002; effective rank), with the sharp-null variance as a sensitivity.
+
+**Honest limitations.**
+
+- Descriptive, written after exploration.
+- PSR and DSR here test against zero (cash), not against EW.
+- The generalized variance assumes AR(1) dependence.
+- D3 is a normal-approximation power calculation, not the paper's.
+- Effective K is an estimate.
+'''
+
+[[hypothesis]]
+id = "D1"
+label = 'D1 (descriptive: PSR vs 0 and MinTRL)'
+kind = "descriptive"
+statistic = "PSR(SR0 = 0) and MinTRL (α = 0.05) per core run and 60/40, three windows; generalized and iid variance, Newey–West se cross-check"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "D2"
+label = 'D2 (descriptive: power vs 0, years to 80%)'
+kind = "descriptive"
+statistic = "power of H0: SR = 0 at annual SR1 in {0.25, 0.5, 0.75}, and smallest T for 80% power, full and test windows"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "D3"
+label = 'D3 (descriptive, our adaptation: power of nb08 H1 tests)'
+kind = "descriptive"
+statistic = "power of the 7 nb08 H1 Sharpe-difference tests vs EW at ΔSR in {0.1, 0.2, 0.3}, z = 1.96 and Bonferroni α/7; years to 80% power, se ∝ 1/√years"
+rule_text = 'descriptive'
+
+[[hypothesis]]
+id = "D4"
+label = 'D4 (descriptive: DSR of the best of 23 runs)'
+kind = "descriptive"
+statistic = "DSR (eq. 28–30) of the highest-Sharpe α-family run for K = 23 and effective K (clustering, effective rank), sharp-null variance sensitivity"
+rule_text = 'descriptive'

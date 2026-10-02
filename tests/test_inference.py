@@ -323,6 +323,17 @@ def test_load_registration_nb08_nb09():
         assert set(out["verdict"]) <= {"NULL HOLDS", "NOT SUPPORTED"}
 
 
+def test_load_registration_nb11():
+    reg = load_registration("nb11")
+    hs = reg["hypothesis"]
+    ids = [h["id"] for h in hs]
+    assert len(ids) == len(set(ids)) == 4
+    assert all(h["kind"] == "descriptive" for h in hs)
+    out = evaluate(reg, {})
+    assert len(out) == 0
+    assert set(out["verdict"]) <= {"NULL HOLDS", "NOT SUPPORTED"}
+
+
 def test_sharpe_se_annual_formula_recovered():
     assert abs(sharpe_se(0.7, 17.2, periods_per_year=1) - np.sqrt((1 + 0.7 ** 2 / 2) / 17.2)) <= 1e-15
 
