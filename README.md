@@ -69,6 +69,8 @@ The price data come from a licensed vendor archive and are not distributed.
   11's registration is descriptive and was written after an exploratory run. Notebooks gate
   their inputs against `registrations/reproduction.toml`. Newey–West standard errors,
   stationary bootstrap, Holm and Romano–Wolf adjustments.
+- **Reference checks.** The GMV, maximum-Sharpe, MDP and HRP solvers are tested against
+  PyPortfolioOpt 1.6 (cvxpy/Clarabel) in `tests/test_reference.py` (`pip install -e '.[ref]'`).
 
 ## Results
 
