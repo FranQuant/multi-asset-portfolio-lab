@@ -28,14 +28,13 @@ def load_prices(path: Path | None = None) -> pd.DataFrame:
     """Load the cached wide price panel (index=Date, columns=tickers).
 
     Looks for data/cache/prices.parquet. If absent, raises with a clear
-    pointer to scripts/build_panel.py (notebook 00's synthetic fallback is plumbing-only).
+    pointer to scripts/build_panel.py (see README).
     """
     root = find_repo_root()
     path = path or root / "data" / "cache" / "prices.parquet"
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. Run scripts/build_panel.py to ingest real data "
-            "(notebook 00's synthetic fallback is for plumbing checks only)."
+            f"{path} not found. Build the cache with scripts/build_panel.py (see README)."
         )
     px = pd.read_parquet(path)
     px.index = pd.to_datetime(px.index)
@@ -60,8 +59,7 @@ def load_rf_returns(path: Path | None = None) -> pd.DataFrame:
     path = path or root / "data" / "cache" / "prices.parquet"
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. Run scripts/build_panel.py to ingest real data "
-            "(notebook 00's synthetic fallback is for plumbing checks only)."
+            f"{path} not found. Build the cache with scripts/build_panel.py (see README)."
         )
     px = pd.read_parquet(path)
     px.index = pd.to_datetime(px.index)
@@ -85,8 +83,7 @@ def load_factor_returns(path: Path | None = None) -> pd.DataFrame:
     path = path or root / "data" / "cache" / "prices.parquet"
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} not found. Run scripts/build_panel.py to ingest real data "
-            "(notebook 00's synthetic fallback is for plumbing checks only)."
+            f"{path} not found. Build the cache with scripts/build_panel.py (see README)."
         )
     px = pd.read_parquet(path)
     px.index = pd.to_datetime(px.index)

@@ -36,8 +36,8 @@ def clustered_corr_figure(log_returns):
     ax.add_patch(Rectangle((k - 0.5, -0.5), 1, n, fill=False, edgecolor="black", lw=1.5))
     ax.set_xticks(range(n)); ax.set_xticklabels(order_tickers, rotation=90, fontsize=7)
     ax.set_yticks(range(n)); ax.set_yticklabels(order_tickers, fontsize=7)
-    ax.set_title(f"Full-sample correlation, nb07 leaf order "
-                 f"({log_returns.index.min().date()} → {log_returns.index.max().date()})")
+    ax.set_title(f"Full-sample correlation of daily log returns, "
+                 f"{log_returns.index.min().date()} to {log_returns.index.max().date()}")
     fig.colorbar(im, ax=ax, shrink=0.7, label="corr")
     fig.tight_layout()
 
@@ -72,11 +72,11 @@ def uup_rolling_figure(panel, rdates, split_ts):
     fig, axes = plt.subplots(3, 1, figsize=(9.5, 9), sharex=True)
     specs = [
         ("uup_mean_corr", "#c0392b", "mean corr of UUP\nwith the other 12", r"(a) $\bar\rho_U$: UUP mean correlation with the other 12"),
-        ("sigma_UUP", "#c0392b", "annualized vol", r"(b) $\sigma_U$"),
+        ("sigma_UUP", "#c0392b", "annualized vol (%)", r"(b) $\sigma_U$"),
         ("rho_bar_rest", "#2c3e50", "mean pairwise corr\n(12 non-UUP)", r"(c) $\bar\rho_{\mathrm{rest}}$: mean correlation among the other 12"),
     ]
     for ax, (col, color, ylabel, title) in zip(axes, specs):
-        ax.plot(table.index, table[col], color=color, lw=1.1)
+        ax.plot(table.index, table[col] * (100 if col == "sigma_UUP" else 1), color=color, lw=1.1)
         if col != "sigma_UUP":
             ax.axhline(0, color="black", lw=0.5)
         ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
