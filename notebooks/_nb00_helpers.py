@@ -12,7 +12,7 @@ from maplab.models import _hrp_long_only
 
 
 def clustered_corr_figure(log_returns):
-    """Full-sample correlation heatmap in nb07's HRP leaf order (single
+    """Full-sample correlation heatmap in the HRP leaf order of notebook 07 (single
     linkage, distance of distances), values annotated, UUP row/column boxed. Also returns the root split as two sorted ticker lists."""
     Sigma = ml.sample_cov(log_returns[ml.UNIVERSE])
     _, info = _hrp_long_only(Sigma, "nb00", pd.Timestamp("2026-04-30"))
@@ -72,7 +72,7 @@ def uup_rolling_figure(panel, rdates, split_ts):
     fig, axes = plt.subplots(3, 1, figsize=(9.5, 9), sharex=True)
     specs = [
         ("uup_mean_corr", "#c0392b", "mean corr of UUP\nwith the other 12", r"(a) $\bar\rho_U$: UUP mean correlation with the other 12"),
-        ("sigma_UUP", "#c0392b", "annualized vol (%)", r"(b) $\sigma_U$"),
+        ("sigma_UUP", "#c0392b", "annualized vol (%)", r"(b) $\sigma_U$: UUP annualized volatility"),
         ("rho_bar_rest", "#2c3e50", "mean pairwise corr\n(12 non-UUP)", r"(c) $\bar\rho_{\mathrm{rest}}$: mean correlation among the other 12"),
     ]
     for ax, (col, color, ylabel, title) in zip(axes, specs):
