@@ -84,7 +84,7 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
 
 def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
     """Unconstrained (closed-form) vs long-only GMV and tangency weights at
-    the snapshot, one panel each, grouped bars per ticker, UUP highlighted.
+    the snapshot, one panel each, grouped bars per ticker.
     Returns (fig, table): gross leverage, sum of negative weights, max |w|."""
     tickers = list(Sigma.columns)
     w_gmv_unc = gmv_closed_form(Sigma)
@@ -92,21 +92,19 @@ def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
     pairs = {"GMV": (w_gmv_unc, w_gmv_lo.reindex(tickers)),
              "MaxSharpe": (w_tan_unc, w_msr_lo.reindex(tickers))}
 
+    method_colors = {"GMV": ml.FAMILY_COLORS[GMV.family], "MaxSharpe": ml.FAMILY_COLORS[MaxSharpe.family]}
     x = np.arange(len(tickers))
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
     for ax, (name, (w_unc, w_lo)) in zip(axes, pairs.items()):
-        unc_colors = ["#c0392b" if t == "UUP" else "#1f4e79" for t in tickers]
-        lo_colors = ["#c0392b" if t == "UUP" else "#2e7d32" for t in tickers]
-        ax.bar(x - 0.2, w_unc.to_numpy(), width=0.4, color=unc_colors, label="unconstrained (closed form)")
-        ax.bar(x + 0.2, w_lo.to_numpy(), width=0.4, color=lo_colors, alpha=0.5, label="long-only (backtest)")
+        ax.bar(x - 0.2, w_unc.to_numpy(), width=0.4, color="#cccccc", label="unconstrained (closed form)")
+        ax.bar(x + 0.2, w_lo.to_numpy(), width=0.4, color=method_colors[name], label="long-only (class)")
         ax.axhline(0, color="black", lw=0.8)
         ax.set_xticks(x)
         ax.set_xticklabels(tickers, rotation=90, fontsize=7)
         ax.set_title("GMV" if name == "GMV" else "MSR (unconstrained = tangency)")
         ax.set_ylabel("weight")
     axes[0].legend(fontsize=8)
-    fig.suptitle("Unconstrained vs long-only weights at the snapshot — independent y-axes "
-                 f"(max |w|: tangency {w_tan_unc.abs().max():.2f}, GMV {w_gmv_unc.abs().max():.2f})")
+    fig.suptitle("Unconstrained vs long-only weights, 2022-12-31 (own y-axis per panel)")
     fig.tight_layout()
 
     cols = {"GMV unconstrained": w_gmv_unc, "GMV long-only": pairs["GMV"][1],
