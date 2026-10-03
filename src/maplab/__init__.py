@@ -35,6 +35,7 @@ from .overlay import vol_overlay
 from . import diagnostics, inference
 from . import robust
 from . import sharpe
+from . import reporting
 from .plotting import apply_style, FAMILY_COLORS
 
 __all__ = [
