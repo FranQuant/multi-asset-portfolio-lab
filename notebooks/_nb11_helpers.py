@@ -190,7 +190,7 @@ def d4_search(XW: dict) -> dict:
 # ---------------------------------------------------------------- figures
 _RUN_FAMILY = {"EW": "Benchmark", "60/40": "Benchmark", "GMV(S)": "Risk-based", "MDP(S)": "Risk-based",
                "ERC(S)": "Risk-based", "HRP(S)": "Risk-based", "MaxSharpe(S)": "Return-based",
-               "BL(0.1,S)": "Return-based", "BMV(0.3)": "Return-based"}
+               "BL(0.1,S)": "Return-based", "BMV(0.3)": "Risk-based"}
 
 
 def fig_mintrl(d1: pd.DataFrame):
@@ -205,7 +205,7 @@ def fig_mintrl(d1: pd.DataFrame):
         ax.axvline(x, color="black", ls=":", lw=1)
         ax.text(x, -0.6, " " + lab, fontsize=8, va="bottom", ha="left" if x < 10 else "right")
     ax.set_xlabel("MinTRL vs SR = 0 (years, α = 0.05, full-window skew / kurtosis / ρ)")
-    ax.set_title("F1 Minimum track record length")
+    ax.set_title("Minimum track record length")
     used = list(dict.fromkeys(_RUN_FAMILY[r] for r in f["run"]))
     ax.legend([plt.Rectangle((0, 0), 1, 1, color=FAMILY_COLORS[k]) for k in used], used,
               loc="center right", fontsize=8)
@@ -236,7 +236,7 @@ def fig_power_cash(XW: dict, runs=RUNS, sr1_annual=SR1_ANNUAL, max_years=40):
     ax.set_xlabel("years of daily data")
     ax.set_ylabel("power of H0: SR = 0 (α = 0.05)")
     ax.set_ylim(0, 1)
-    ax.set_title("F2 Power against cash (band: min–max over the 9 runs)")
+    ax.set_title("Power against cash (band: min–max over the 9 runs)")
     ax.legend(loc="lower right")
     fig.tight_layout()
     return fig
@@ -267,7 +267,7 @@ def fig_power_ew(XW: dict, methods=None, deltas=None):
     ax.set_yscale("log")
     ax.set_xlabel("ΔSR vs EW (annualised)")
     ax.set_ylabel("years for 80% power (α = 0.05, two-sided)")
-    ax.set_title("F3 Years needed to detect a Sharpe difference vs EW")
+    ax.set_title("Years needed to detect a Sharpe difference vs EW")
     h_, l_ = ax.get_legend_handles_labels()
     order = sorted(range(len(l_)), key=lambda i: (_RUN_FAMILY[[k for k in methods if _LINE_LABEL.get(k, k) == l_[i]][0]], l_[i]))
     ax.legend([h_[i] for i in order], [l_[i] for i in order], fontsize=8, ncol=2)
@@ -315,6 +315,6 @@ def fig_search(d4: dict):
         ax.text(n - 0.3, pos.mean(), f"{name.replace(' / ', ' /' + chr(10))} ({len(pos)})", rotation=-90, ha="left",
                 va="center", fontsize=8, fontweight="bold", clip_on=False)
     fig.colorbar(im, ax=ax, shrink=0.8, pad=0.1, label="correlation of daily excess returns")
-    ax.set_title(f"F4 The 23 Phase 1 runs by trial cluster (nK = {d4['nK']}, effective rank = {d4['k_er']:.2f})")
+    ax.set_title(f"The 23 runs by trial cluster (nK = {d4['nK']}, effective rank = {d4['k_er']:.2f})")
     fig.tight_layout()
     return fig
