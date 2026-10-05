@@ -511,20 +511,20 @@ def root_split_figure(f7_table, split_ts):
     ax.plot(f7_table.index, f7_table["sqrt_V_rest"], label="sqrt(V_rest)", color="#555555", lw=1.1)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
     ax.set_ylabel("annualized vol")
-    ax.set_title("F7(a): sigma_UUP vs sqrt(V_rest)", fontsize=9)
+    ax.set_title("(a) σ_UUP and √V_rest", fontsize=9)
     ax.legend(fontsize=8)
 
     ax = axes[1]
     shade_non_singleton(ax)
     ax.plot(f7_table.index, f7_table["w_UUP_HRP"], label="w_UUP HRP(S)", color="#8e44ad", lw=1.3)
-    ax.plot(f7_table.index, f7_table["identity"], label="identity V_rest/(sigma_UUP^2+V_rest)",
+    ax.plot(f7_table.index, f7_table["identity"], label=r"identity $V_{\mathrm{rest}}/(\sigma^2_{\mathrm{UUP}} + V_{\mathrm{rest}})$",
             color="#8e44ad", lw=1.0, ls="--")
     ax.plot(f7_table.index, f7_table["w_UUP_GMV"], label="w_UUP GMV(S)",
             color=ml.FAMILY_COLORS["Risk-based"], lw=0.7)
     ax.plot(f7_table.index, f7_table["w_UUP_ERC"], label="w_UUP ERC(S)", color="#d4a017", lw=0.7)
     ax.axvline(split_ts, color="black", ls=":", lw=1)
     ax.set_ylabel("w_UUP")
-    ax.set_title("F7(b): HRP w_UUP vs the root-singleton identity", fontsize=9)
+    ax.set_title("(b) HRP's UUP weight and the root-singleton identity", fontsize=9)
     ax.legend(fontsize=7, ncol=2)
 
     ax = axes[2]
@@ -534,7 +534,7 @@ def root_split_figure(f7_table, split_ts):
     ax.axvline(split_ts, color="black", ls=":", lw=1)
     ax.set_ylabel("mean pairwise corr\n(12 non-UUP)")
     ax.set_xlabel("rebalance date")
-    ax.set_title("F7(c): rho_bar_rest", fontsize=9)
+    ax.set_title("(c) mean correlation among the other 12", fontsize=9)
 
     fig.tight_layout()
     return fig
