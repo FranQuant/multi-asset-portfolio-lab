@@ -294,7 +294,7 @@ def exposure_figure(overlays, core, bench="60/40", figsize=(10, 4)):
     ax.plot(hb.index, hb, color=ml.plotting.METHOD_COLORS["60/40"], lw=0.7, label=vmp(bench))
     ax.set_ylim(0, 1.05)
     ax.set_ylabel("held fraction h")
-    ax.set_title("F1 — Overlay exposure from 2010-02-02", pad=26)
+    ax.set_title("Overlay exposure from 2010-02-02", pad=26)
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), frameon=False, ncol=3)
     fig.tight_layout()
     return fig
@@ -331,7 +331,7 @@ def arrows_figure(perf, names, window="full", figsize=(8.5, 6), tol=(0.12, 0.04)
     ax.set_ylim(min(ys) - 0.08 * yr, max(ys) + 0.08 * yr)
     ax.set_xlabel("annualized vol")
     ax.set_ylabel("annualized return")
-    ax.set_title(f"F2 — Base (hollow, labelled) to VMP (filled), {window} window from 2010-02-02")
+    ax.set_title(f"Base (hollow, labelled) to VMP (filled), {window} window from 2010-02-02")
     fig.tight_layout()
     return fig
 
@@ -375,7 +375,7 @@ def episode_figure(all_runs, core, bench="60/40", figsize=(11, 6.5)):
             ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
     axes[0, 0].legend(fontsize=8, frameon=False, loc="lower left")
     axes[0, 1].legend(fontsize=8, frameon=False, loc="lower left")
-    fig.suptitle("F3 — Registered episodes")
+    fig.suptitle("Registered episodes")
     fig.tight_layout()
     return fig
 
@@ -396,6 +396,6 @@ def sensitivity_heatmap(sens, names=BASES, window="full", figsize=(7.5, 5)):
             ax.text(j, i, f"{v[i, j]:+.2f}", ha="center", va="center", fontsize=8,
                     color="white" if abs(v[i, j]) > 0.6 * lim else "0.1")
     fig.colorbar(im, ax=ax, label="ΔSR vs registered overlay")
-    ax.set_title(f"F5 — Sensitivities: Sharpe minus registered overlay's, {window} window")
+    ax.set_title(f"Sensitivities: Sharpe minus registered overlay's, {window} window")
     fig.tight_layout()
     return fig
