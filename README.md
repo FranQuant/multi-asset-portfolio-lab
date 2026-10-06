@@ -63,20 +63,23 @@ forward-fill only); see notebook 00.
 
 ## Methods
 
-| Notebook | Method | Family | Idea |
-|---|---|---|---|
-| [00](notebooks/00_data_contract.ipynb) | Data contract | Data | Panel construction, return conventions, data checks |
-| [01](notebooks/01_mean_variance.ipynb) | Mean-variance (GMV, MaxSharpe) | Risk-based (GMV), Return-based (MaxSharpe) | Minimum variance; maximum Sharpe ratio on sample moments |
-| [02](notebooks/02_capm_beta_target.ipynb) | Beta-targeted minimum variance | Risk-based | Minimum variance subject to a market-β floor |
-| [03](notebooks/03_black_litterman.ipynb) | Black–Litterman | Return-based | EW-implied equilibrium prior updated with momentum views |
-| [04](notebooks/04_covariance_shrinkage.ipynb) | Covariance shrinkage | Estimator swap | Ledoit–Wolf and OAS in place of the sample covariance |
-| [05](notebooks/05_most_diversified.ipynb) | Most diversified portfolio (MDP) | Risk-based | Maximise the diversification ratio |
-| [06](notebooks/06_risk_parity_erc.ipynb) | Equal risk contribution (ERC) | Risk-based | Equalise each asset's contribution to portfolio variance |
-| [07](notebooks/07_hierarchical_risk_parity.ipynb) | Hierarchical risk parity (HRP) | Risk-based | Cluster the correlation matrix, allocate by inverse variance down the tree |
-| [08](notebooks/08_method_comparison.ipynb) | Comparison | Evaluation | Sharpe-ratio tests vs EW; CAPM α with Romano–Wolf |
-| [09](notebooks/09_robustness.ipynb) | Robustness | Evaluation | Lookback length, ex-ante volatility bias, rank stability |
-| [10](notebooks/10_vol_overlay.ipynb) | Volatility overlay | Overlay | Scale exposure to a volatility target, remainder in T-bills |
-| [11](notebooks/11_sharpe_inference.ipynb) | Sharpe inference | Evaluation | PSR, minimum track record, power, deflated Sharpe ratio |
+| Notebook | Method | Family | Idea | Colab |
+|---|---|---|---|---|
+| [00](notebooks/00_data_contract.ipynb) | Data contract | Data | Panel construction, return conventions, data checks | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/00_data_contract.ipynb) |
+| [01](notebooks/01_mean_variance.ipynb) | Mean-variance (GMV, MaxSharpe) | Risk-based (GMV), Return-based (MaxSharpe) | Minimum variance; maximum Sharpe ratio on sample moments | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/01_mean_variance.ipynb) |
+| [02](notebooks/02_capm_beta_target.ipynb) | Beta-targeted minimum variance | Risk-based | Minimum variance subject to a market-β floor | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/02_capm_beta_target.ipynb) |
+| [03](notebooks/03_black_litterman.ipynb) | Black–Litterman | Return-based | EW-implied equilibrium prior updated with momentum views | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/03_black_litterman.ipynb) |
+| [04](notebooks/04_covariance_shrinkage.ipynb) | Covariance shrinkage | Estimator swap | Ledoit–Wolf and OAS in place of the sample covariance | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/04_covariance_shrinkage.ipynb) |
+| [05](notebooks/05_most_diversified.ipynb) | Most diversified portfolio (MDP) | Risk-based | Maximise the diversification ratio | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/05_most_diversified.ipynb) |
+| [06](notebooks/06_risk_parity_erc.ipynb) | Equal risk contribution (ERC) | Risk-based | Equalise each asset's contribution to portfolio variance | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/06_risk_parity_erc.ipynb) |
+| [07](notebooks/07_hierarchical_risk_parity.ipynb) | Hierarchical risk parity (HRP) | Risk-based | Cluster the correlation matrix, allocate by inverse variance down the tree | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/07_hierarchical_risk_parity.ipynb) |
+| [08](notebooks/08_method_comparison.ipynb) | Comparison | Evaluation | Sharpe-ratio tests vs EW; CAPM α with Romano–Wolf | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/08_method_comparison.ipynb) |
+| [09](notebooks/09_robustness.ipynb) | Robustness | Evaluation | Lookback length, ex-ante volatility bias, rank stability | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/09_robustness.ipynb) |
+| [10](notebooks/10_vol_overlay.ipynb) | Volatility overlay | Overlay | Scale exposure to a volatility target, remainder in T-bills | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/10_vol_overlay.ipynb) |
+| [11](notebooks/11_sharpe_inference.ipynb) | Sharpe inference | Evaluation | PSR, minimum track record, power, deflated Sharpe ratio | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/11_sharpe_inference.ipynb) |
+
+**Run on Colab.** Click a badge. The first cell clones the repo, installs it and loads the
+shipped data; no setup needed.
 
 ## Design
 
@@ -130,7 +133,8 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
     pytest
     cd notebooks && for nb in [01][0-9]_*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
 
-Uses the price panel shipped in data/cache/prices.parquet (see Data). Python 3.11 or later (developed on 3.12).
+Uses the price panel shipped in data/cache/prices.parquet (see Data). Python 3.11 or later
+(developed on 3.12).
 
 ## References
 
@@ -156,5 +160,5 @@ not predict future results.
 
 ## License
 
-Code: MIT (see `LICENSE`). The price panel in data/cache/prices.parquet is EOD Historical Data (eodhd.com); it is not covered by the
-MIT licence.
+Code: MIT (see `LICENSE`). The price panel in data/cache/prices.parquet is EOD Historical
+Data (eodhd.com); it is not covered by the MIT licence.
