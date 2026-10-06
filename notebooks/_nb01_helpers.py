@@ -48,9 +48,9 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     # Efficient (return >= GMV's) vs inefficient branch of the swept curve
     efficient = frontier_ret >= gmv_ret
     ax.plot(frontier_vol[~efficient], frontier_ret[~efficient], color="#999999",
-            ls="--", lw=1.5, zorder=3, label="Inefficient branch")
+            ls="--", lw=1.5, zorder=3, label="inefficient branch")
     ax.plot(frontier_vol[efficient], frontier_ret[efficient], color="#2e7d32",
-            lw=2, zorder=3, label="Efficient frontier (long-only)")
+            lw=2, zorder=3, label="efficient frontier (long-only)")
 
     ew_w = np.full(n, 1.0 / n)
     ew_ret = float(ew_w @ mu_np)
