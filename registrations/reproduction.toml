@@ -1,5 +1,5 @@
-# Canonical round(Sharpe, 2) per window, as asserted by the reproduction
-# gates of notebooks 04-07 (full / train (<= split) / test (> split)).
+# Canonical round(Sharpe, 2) per window, checked by tests/test_reproduction.py
+# and used by notebooks 01-11 (full / train (<= split) / test (> split)).
 
 [GMV_sample]
 full = 0.62

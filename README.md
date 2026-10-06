@@ -82,8 +82,9 @@ The price data come from a licensed vendor archive and are not distributed.
   2022-12-31 splits a train and a 3.3-year test window. Benchmarks: EW and 60/40 (SPY/IEF).
 - **Inference.** Hypotheses are fixed in `registrations/*.toml` before the tested
   statistics are computed (notebooks 04–10; notebook 11 is descriptive). Newey–West
-  standard errors, stationary bootstrap, Holm and Romano–Wolf adjustments; notebooks gate
-  their inputs against `registrations/reproduction.toml`.
+  standard errors, stationary bootstrap, Holm and Romano–Wolf adjustments.
+  `tests/test_reproduction.py` re-runs every registered backtest and checks its
+  Sharpe ratios against `registrations/reproduction.toml`.
 - **Reference checks.** GMV, maximum-Sharpe, MDP and HRP solvers are tested against
   PyPortfolioOpt (`tests/test_reference.py`).
 

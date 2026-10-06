@@ -19,3 +19,6 @@ ref = ["pyportfolioopt==1.6.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = ["repro: re-runs real-data backtests against registrations/reproduction.toml (needs data/cache)"]
