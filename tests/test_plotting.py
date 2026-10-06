@@ -171,10 +171,14 @@ def test_wealth_drawdown_smoke():
     rf = pd.Series(0.00008, index=results["EW"]["net"].index)
     fig = wealth_drawdown(net, rf, split_ts)
     assert isinstance(fig, Figure)
-    assert len(fig.axes) == 2
+    assert len(fig.axes) == 1 + len(net)  # wealth + one drawdown panel per run
     labels = [ln.get_label() for ln in fig.axes[0].lines]
     assert "BIL (rf)" in labels and all(name in labels for name in net)
     assert fig.axes[0].get_yscale() == "log"
+    for ax, (name, r) in zip(fig.axes[1:], net.items()):
+        wealth = (1.0 + r).cumprod()
+        mdd = 100 * float((wealth / wealth.cummax() - 1.0).min())
+        assert ax.get_title() == f"{name} — max DD −{abs(mdd):.1f}%"
     plt.close(fig)
 
 

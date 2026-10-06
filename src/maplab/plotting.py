@@ -23,11 +23,11 @@ HIGHLIGHT = "#c0392b"
 # variants appear in one figure they are told apart by line style or hatch).
 RUN_COLORS = {
     "MaxSharpe":   "#1f4e79",
-    "BL":          "#5dade2",
+    "BL":          "#ee7000",
     "GMV":         "#2e7d32",
     "BMV":         "#81c784",
     "BetaMinVar":  "#81c784",
-    "MDP":         "#6d4c41",
+    "MDP":         "#e377c2",
     "ERC":         "#d4a017",
     "HRP":         "#8e44ad",
     "EW":          "#555555",
@@ -38,7 +38,7 @@ RUN_COLORS = {
 }
 
 # Pair lines of cumulative_paired without an explicit colour, in call order.
-PAIR_CYCLE = ["#1f4e79", "#2e7d32", "#d4a017", "#8e44ad", "#555555"]
+PAIR_CYCLE = ["#1f4e79", "#2e7d32", "#d4a017", "#8e44ad", "#7e7e7e", "#e377c2", "#17becf", "#8c564b"]
 
 # Display names of asset groups (keys of contract.ASSET_GROUPS) in legends and tables.
 GROUP_LABELS = {"inflation_linked": "inflation-linked", "real_assets": "real assets"}
@@ -332,6 +332,8 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
     dashed = total; otherwise solid totals only. `colors` ("a - b" -> color)
     fixes a pair's line colour; pairs not in it take PAIR_CYCLE in call order.
     Keys stay ASCII ("a - b"); legend labels show "a − b"."""
+    if len(pairs) > len(PAIR_CYCLE):
+        raise ValueError(f"{len(pairs)} pairs but PAIR_CYCLE has {len(PAIR_CYCLE)} colours")
     own_fig = ax is None
     if own_fig:
         fig, ax = plt.subplots(figsize=(9.5, 5))
@@ -344,7 +346,7 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
             idx = diff.index.intersection(mkt_excess.index)
             adj = (diff.loc[idx] - beta_hat * mkt_excess.loc[idx]).cumsum() * 100
             total = diff.cumsum() * 100
-            ckw = {"color": colors[pair_key] if colors and pair_key in colors else PAIR_CYCLE[i % len(PAIR_CYCLE)]}
+            ckw = {"color": colors[pair_key] if colors and pair_key in colors else PAIR_CYCLE[i]}
             line, = ax.plot(adj.index, adj.to_numpy(), lw=1.1, label=f"{a_name} − {b_name}", **ckw)
             ax.plot(total.index, total.to_numpy(), lw=0.8, ls="--", color=line.get_color())
         ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
@@ -358,7 +360,7 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
             diff = paired_series[(a_name, b_name)]
             cum = diff.cumsum() * 100
             key = f"{a_name} - {b_name}"
-            ckw = {"color": colors[key] if colors and key in colors else PAIR_CYCLE[i % len(PAIR_CYCLE)]}
+            ckw = {"color": colors[key] if colors and key in colors else PAIR_CYCLE[i]}
             ax.plot(cum.index, cum.to_numpy(), lw=1.1, label=f"{a_name} − {b_name}", **ckw)
         ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
         ax.axhline(0, color="black", lw=0.6)
@@ -385,22 +387,34 @@ def _line_style(label: str, styles: dict | None) -> dict:
     return {"color": color} if color is not None else {}
 
 
-def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(10, 8), title=None):
+def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(11, 11), title=None, ncols=5):
     """Log-scale wealth (1 = start) with BIL wealth from `rf` (grey dashed)
-    on top, underwater drawdown below; `net` is label -> daily net Series."""
+    on top; below, one small drawdown panel per run (shared axes, the run in
+    its colour over every other run in thin grey). Panel titles carry the run's
+    maximum drawdown; `net` is label -> daily net Series."""
+    import matplotlib.dates as mdates
     from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 
-    fig, (ax_w, ax_d) = plt.subplots(2, 1, figsize=figsize, sharex=True,
-                                     gridspec_kw={"height_ratios": [2, 1]})
+    labels = list(net)
+    nrows = -(-len(labels) // ncols)
+    fig = plt.figure(figsize=figsize, layout="constrained")
+    gs = fig.add_gridspec(2, 1, height_ratios=[1, 1])
+    ax_w = fig.add_subplot(gs[0])
+    sub = gs[1].subgridspec(nrows, ncols)
+    grid = [fig.add_subplot(sub[k // ncols, k % ncols]) for k in range(len(labels))]
+    for ax in grid[1:]:
+        ax.sharex(grid[0])
+        ax.sharey(grid[0])
+    ax_w.sharex(grid[0])
+
     start = end = None
     ymin, ymax = np.inf, -np.inf
+    dds = {}
     for label, r in net.items():
         wealth = (1.0 + r).cumprod()
         ymin, ymax = min(ymin, float(wealth.min())), max(ymax, float(wealth.max()))
-        dd = wealth / wealth.cummax() - 1.0
-        st = _line_style(label, styles)
-        ax_w.plot(wealth.index, wealth.to_numpy(), lw=1.1, label=label, **st)
-        ax_d.plot(dd.index, 100 * dd.to_numpy(), lw=0.9, label=label, **st)
+        dds[label] = 100 * (wealth / wealth.cummax() - 1.0)
+        ax_w.plot(wealth.index, wealth.to_numpy(), lw=1.1, label=label, **_line_style(label, styles))
         start = r.index.min() if start is None else min(start, r.index.min())
         end = r.index.max() if end is None else max(end, r.index.max())
     rf_w = (1.0 + rf.loc[start:end]).cumprod()
@@ -413,14 +427,29 @@ def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(10, 8), title
     ax_w.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
     ax_w.yaxis.set_minor_locator(NullLocator())
     ax_w.set_ylabel("wealth (1 = start, log scale)")
-    ax_d.set_ylabel("drawdown (%)")
-    ax_d.set_xlabel("date")
-    for ax in (ax_w, ax_d):
-        ax.axvline(split_ts, color="black", ls=":", lw=1)
+    ax_w.tick_params(labelbottom=False)
+    ax_w.axvline(split_ts, color="black", ls=":", lw=1)
     ax_w.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8, borderaxespad=0)
     if title is not None:
         ax_w.set_title(title)
-    fig.tight_layout()
+
+    for k, ax in enumerate(grid):
+        row, col = divmod(k, ncols)
+        label = labels[k]
+        for other, dd in dds.items():
+            if other != label:
+                ax.plot(dd.index, dd.to_numpy(), color="#cccccc", lw=0.5, zorder=1)
+        dd = dds[label]
+        color = _line_style(label, styles).get("color")
+        ax.fill_between(dd.index, dd.to_numpy(), 0, color=color, alpha=0.35, lw=0, zorder=2)
+        ax.plot(dd.index, dd.to_numpy(), color=color, lw=1.0, zorder=3)
+        ax.axvline(split_ts, color="black", ls=":", lw=1, zorder=4)
+        ax.set_title(f"{label} — max DD −{abs(dd.min()):.1f}%", fontsize=8)
+        ax.tick_params(labelbottom=k + ncols >= len(labels), labelleft=col == 0, labelsize=8)
+        ax.xaxis.set_major_locator(mdates.YearLocator(5))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        if col == 0:
+            ax.set_ylabel("drawdown (%)")
     return fig
 
 

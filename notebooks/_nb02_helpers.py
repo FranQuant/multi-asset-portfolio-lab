@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
+from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
 
@@ -41,7 +42,8 @@ def sml_figure(capm_table):
 
     ax.axhline(0, color="#cccccc", lw=0.8)
     ax.set_xlabel(r"$\beta$ (full window)")
-    ax.set_ylabel("annualized excess return")
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+    ax.set_ylabel("annualized excess return (%)")
     ax.set_title("Security market line")
     ax.legend(fontsize=8)
     plt.tight_layout()
