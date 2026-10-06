@@ -139,10 +139,10 @@ def capm_collapse(log_returns, excess, asof_dates):
         mu_A2 = B_a2 @ lam_A2
 
         designs = {
-            "A1 CAPM tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A1),
-            "A1 CAPM long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A1),
-            "A2 MKT/TERM/CREDIT tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A2),
-            "A2 MKT/TERM/CREDIT long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A2),
+            "CAPM tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A1),
+            "CAPM long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A1),
+            "three-factor tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A2),
+            "three-factor long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A2),
         }
 
         lhs1 = np.linalg.solve(Sigma_x, mu_A1)
