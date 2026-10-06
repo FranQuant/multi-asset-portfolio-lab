@@ -3,6 +3,7 @@ ratios in all three windows, and the overlays hold their identity, rebuild and g
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -52,3 +53,51 @@ def test_overlay_identity(nb):
     assert float(idt["rebuild_max_abs"].max()) <= 1e-15
     assert (idt["live_date"] == h10.LIVE).all()
     assert (idt["h_min"] > 0).all() and (idt["h_max"] <= 1.0).all()
+
+
+def test_overlay_exposure_properties(nb):
+    """h equals c, the braking share rebuilds from the c path, and c never exceeds 1."""
+    ex = nb["h10"].exposure_table(nb["ov"], nb["split_ts"])
+    exf = ex.xs("full", level="window")
+    for lab, o in nb["ov"].items():
+        assert np.array_equal(o["h"].to_numpy(), o["c"].to_numpy())
+        assert abs(o["diag"]["share_braking"] - exf.loc[lab, "share_braking"]) <= 1e-15
+    assert (exf["mean_c"] <= 1.0).all()
+
+
+def test_overlay_lowest_c_falls_in_march_april_2020(nb):
+    ex = nb["h10"].exposure_table(nb["ov"], nb["split_ts"])
+    exf = ex.xs("full", level="window")
+    assert exf["min_c_date"].between(pd.Timestamp("2020-03-25"), pd.Timestamp("2020-04-07")).all()
+
+
+def test_perf_table_sharpe_matches_scoring_frames(nb):
+    h10, split_ts, rf_daily = nb["h10"], nb["split_ts"], nb["rf_daily"]
+    all_runs = {**nb["runs"], **nb["ov"]}
+    XW = h10.scoring_frames(all_runs, h10.BASES + h10.VMPS, rf_daily, split_ts)
+    ORDER = [x for m in h10.BASES for x in (m, h10.vmp(m))]
+    perf = h10.perf_table(all_runs, ORDER, split_ts, rf_daily)
+    perf = perf.reindex(pd.MultiIndex.from_product([ORDER, list(h10.WINDOWS)], names=["strategy", "window"]))
+    PERF_COLS = ["ann_return", "ann_vol", "sharpe", "max_dd", "calmar", "ann_turnover", "cost_drag"]
+
+    gap = 0.0
+    for w, Xw in XW.items():
+        sr = Xw.mean() / Xw.std(ddof=1) * np.sqrt(ml.TRADING_DAYS)
+        gap = max(gap, float((sr[ORDER] - perf.xs(w, level="window").loc[ORDER, "sharpe"]).abs().max()))
+    assert gap <= 1e-10 and not perf[PERF_COLS].isna().any().any()
+
+
+def test_sensitivity_registered_variant_equals_overlay_minus_base(nb):
+    h10, split_ts, rf_daily = nb["h10"], nb["split_ts"], nb["rf_daily"]
+    all_runs = {**nb["runs"], **nb["ov"]}
+    ORDER = [x for m in h10.BASES for x in (m, h10.vmp(m))]
+    perf = h10.perf_table(all_runs, ORDER, split_ts, rf_daily)
+    perf = perf.reindex(pd.MultiIndex.from_product([ORDER, list(h10.WINDOWS)], names=["strategy", "window"]))
+    sens = h10.sensitivity_table(nb["runs"], rf_daily, split_ts, nb["ov"])
+    sf = sens.xs("full", level="window")
+
+    P_full = perf.xs("full", level="window")
+    reg_gap = max(abs(float(sf.loc[("registered", n), "dSR_vs_base"])
+                      - float(P_full.loc[h10.vmp(n), "sharpe"] - P_full.loc[n, "sharpe"])) for n in h10.BASES)
+    assert reg_gap <= 1e-10
+    assert (sf["dSR_vs_registered"].xs("registered", level="variant") == 0.0).all()

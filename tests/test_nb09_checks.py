@@ -52,3 +52,20 @@ def test_core_runs_match_nb08(nb):
 def test_grid_252_weights_equal_core(nb):
     assert nb["common_start"] == pd.Timestamp("2011-01-31")
     assert nb["h9"].weight_crosscheck(nb["grid"], nb["core"]).max() < 1e-12
+
+
+def test_forecast_bias_decomposition_q_bar_equals_mean_log_ratio(nb):
+    sys.path.insert(0, str(ROOT / "notebooks"))
+    try:
+        from helpers import nb07 as h7
+    finally:
+        sys.path.remove(str(ROOT / "notebooks"))
+    CORE = nb["h9"].CORE
+    rdates = ml.rebalance_dates(nb["log_returns"].index)
+    rdates = rdates[rdates >= ml.first_eligible_rebalance(nb["log_returns"].index)]
+    q_table, n_dropped, _ = h7.forecast_bias_table(nb["panel"], rdates, nb["core"], nb["simple_returns"], CORE)
+    q_mean = q_table.groupby("method")["q"].mean()
+    for m in CORE:
+        seg = q_table[q_table["method"] == m].sort_values("asof")
+        d = ml.robust.forecast_bias_decomposition(seg["realized_vol"], seg["exante_vol"])
+        assert abs(d["q_bar"] - float(q_mean[m])) <= 1e-12, m
