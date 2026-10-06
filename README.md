@@ -1,10 +1,10 @@
+# Applied Portfolio Construction Research
+
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Notebooks](https://img.shields.io/badge/notebooks-12-F37626?logo=jupyter&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
 ![Pre-registered](https://img.shields.io/badge/hypotheses-pre--registered-555555)
 ![License](https://img.shields.io/badge/license-MIT-2e7d32)
-
-# Applied Portfolio Construction Research
 
 ### Classical and modern approaches to multi-asset allocation
 
@@ -138,7 +138,7 @@ Requires the price panel described under Data. Python 3.11 or later (developed o
 - Black, F. & Litterman, R. (1992). Global Portfolio Optimization. Financial Analysts Journal 48(5).
 - Choueifaty, Y. & Coignard, Y. (2008). Toward Maximum Diversification. Journal of Portfolio Management 35(1).
 - DeMiguel, V., Garlappi, L. & Uppal, R. (2009). Optimal Versus Naive Diversification: How Inefficient Is the 1/N Portfolio Strategy? Review of Financial Studies 22(5).
-- Hilpisch, Y. J. (2026). Python and AI for Asset Management: Data Science, Machine Learning, and Modern AI Workflows. Manuscript, 24 August 2026.
+- Hilpisch, Y. J. (2026). Python and AI for Asset Management: Data Science, Machine Learning, and Modern AI Workflows. Manuscript.
 - Hilpisch, Y. J. (2027). Python for Finance (3rd ed.). O'Reilly Media. Early Release.
 - Ledoit, O. & Wolf, M. (2004). A Well-Conditioned Estimator for Large-Dimensional Covariance Matrices. Journal of Multivariate Analysis 88(2).
 - Ledoit, O. & Wolf, M. (2008). Robust Performance Hypothesis Testing with the Sharpe Ratio. Journal of Empirical Finance 15(5).
