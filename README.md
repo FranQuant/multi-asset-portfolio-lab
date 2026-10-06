@@ -54,9 +54,12 @@ Daily adjusted prices for 13 ETFs, one per risk premium, 2008-01-02 to 2026-04-3
 | Real assets | VNQ, DBC, GLD |
 | FX | UUP |
 
-The price data come from a licensed vendor archive and are not distributed.
-`scripts/build_panel.py` builds the panel from a CSV with columns Date, Ticker, AdjClose
-(see notebook 00).
+The panel is shipped as `data/cache/prices.parquet` (4,611 trading days × 17 tickers: the 13
+ETFs, BIL and three factor ETFs; SHA-256 `329ef8a7…daf09e0`, full hash pinned in
+`tests/test_data_file.py`). Source: adjusted end-of-day prices from EOD Historical Data
+(eodhd.com). Built by `scripts/reshape_eodhd_archive.py` (vendor archive to a long CSV with
+columns Date, Ticker, AdjClose) and then `scripts/build_panel.py` (SPY trading calendar,
+forward-fill only); see notebook 00.
 
 ## Methods
 
@@ -127,7 +130,7 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
     pytest
     cd notebooks && for nb in [01][0-9]_*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
 
-Requires the price panel described under Data. Python 3.11 or later (developed on 3.12).
+Uses the price panel shipped in data/cache/prices.parquet (see Data). Python 3.11 or later (developed on 3.12).
 
 ## References
 
@@ -153,5 +156,5 @@ not predict future results.
 
 ## License
 
-Code: MIT (see `LICENSE`). Price data are not included and remain subject to the vendor's
-licence.
+Code: MIT (see `LICENSE`). The price panel in data/cache/prices.parquet is EOD Historical Data (eodhd.com); it is not covered by the
+MIT licence.

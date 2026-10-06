@@ -1,5 +1,6 @@
-# Data caches (regenerate via scripts/build_panel.py)
+# Data caches: only prices.parquet is tracked (built by scripts/build_panel.py)
 data/cache/*.parquet
+!data/cache/prices.parquet
 data/raw/
 # Internal reference docs — grounding only, not for distribution
 docs/references/*.pdf
