@@ -21,7 +21,7 @@ def nb():
     """Panel and rebalance dates built exactly as notebook 07's data cell does."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb07_helpers as h
+        from helpers import nb07 as h
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     prices = ml.load_prices()

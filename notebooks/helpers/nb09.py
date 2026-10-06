@@ -14,7 +14,7 @@ from matplotlib.ticker import PercentFormatter
 import maplab as ml
 from maplab import GMV, MostDiversified, EqualRiskContribution, HierarchicalRiskParity, backtest
 
-import _nb08_helpers as h8
+from . import nb08 as h8
 
 CORE = h8.CORE
 LOOKBACKS = (252, 504, 756)

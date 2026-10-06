@@ -19,7 +19,7 @@ def h11():
     """Notebook 11's helpers, imported with notebooks/ on sys.path only for the import."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb11_helpers as h
+        from helpers import nb11 as h
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     return h

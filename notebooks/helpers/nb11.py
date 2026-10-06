@@ -12,7 +12,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import maplab as ml
-import _nb08_helpers as h8
+from . import nb08 as h8
 from maplab.plotting import FAMILY_COLORS
 
 CORE = h8.CORE

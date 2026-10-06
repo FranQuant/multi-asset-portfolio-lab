@@ -25,8 +25,8 @@ def nb():
     """Runs built exactly as notebook 08 does (n08-data, then h.build_runs / h.build_benchmarks)."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb08_helpers as h8
-        import _nb07_helpers as h7
+        from helpers import nb08 as h8
+        from helpers import nb07 as h7
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     prices = ml.load_prices()

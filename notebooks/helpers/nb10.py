@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
-import _nb08_helpers as h8
+from . import nb08 as h8
 
 M = ml.metrics
 

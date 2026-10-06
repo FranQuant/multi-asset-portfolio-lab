@@ -22,8 +22,8 @@ def nb():
     """Data, base runs and overlays built exactly as notebook 10's data, §3 and overlay cells do."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb08_helpers as h8
-        import _nb10_helpers as h10
+        from helpers import nb08 as h8
+        from helpers import nb10 as h10
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     prices = ml.load_prices()

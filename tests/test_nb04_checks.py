@@ -25,7 +25,7 @@ def nb():
     """Panel built exactly as notebook 04's data cell does."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb04_helpers as h
+        from helpers import nb04 as h
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     prices = ml.load_prices()

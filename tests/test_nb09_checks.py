@@ -22,8 +22,8 @@ def nb():
     """Data, core runs and grid built exactly as notebook 09's data, §3 and §4 cells do."""
     sys.path.insert(0, str(ROOT / "notebooks"))
     try:
-        import _nb08_helpers as h8
-        import _nb09_helpers as h9
+        from helpers import nb08 as h8
+        from helpers import nb09 as h9
     finally:
         sys.path.remove(str(ROOT / "notebooks"))
     prices = ml.load_prices()
