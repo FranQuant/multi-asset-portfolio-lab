@@ -6,22 +6,17 @@
 ![Pre-registered](https://img.shields.io/badge/hypotheses-pre--registered-555555)
 ![License](https://img.shields.io/badge/license-MIT-2e7d32)
 
-### Classical and modern approaches to multi-asset allocation
+### From mean-variance to risk parity and hierarchical allocation
 
-**Does portfolio optimization add value over naive diversification in a multi-asset
-portfolio?** We study seven allocation models that span return-based and risk-based
-construction (minimum variance, maximum Sharpe, beta-constrained minimum variance,
-Black–Litterman, the most diversified portfolio, equal risk contribution and hierarchical
-risk parity), together with covariance shrinkage (Ledoit–Wolf, OAS) and a
-volatility-targeting overlay. Every model runs in a monthly walk-forward backtest on a
-13-ETF cross-asset universe, net of transaction costs, from February 2009 to April 2026,
-and is benchmarked against equal weight and a 60/40 stock–bond portfolio. Hypotheses are
-pre-registered and tested with HAC standard errors and multiple-testing control.
+**Does portfolio optimization beat naive diversification?** We test seven allocation models
+(minimum variance, maximum Sharpe, beta-constrained minimum variance, Black–Litterman, most
+diversified portfolio, equal risk contribution and hierarchical risk parity), with
+covariance shrinkage and a volatility-targeting overlay, in a monthly walk-forward backtest
+on 13 cross-asset ETFs from 2009 to 2026, net of costs, against equal weight and 60/40.
 
-**Our conclusion:** over 17 years, no optimized portfolio earns a Sharpe ratio
-statistically distinguishable from equal weight. The models differ sharply in risk
-(volatility, market beta, drawdown and turnover) but not in risk-adjusted return, and the
-sample is too short to separate them.
+**Conclusion:** no optimized portfolio earns a Sharpe ratio statistically distinguishable
+from equal weight. The models differ sharply in risk, not in risk-adjusted return, and 17
+years of data are too few to separate them.
 
 ![Wealth and drawdowns of the core methods](docs/img/wealth_drawdown.png)
 
