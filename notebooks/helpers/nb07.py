@@ -494,10 +494,10 @@ def root_split_table(sigma_cache, h2_table, results, rdates):
     return pd.DataFrame(f7_rows).set_index("asof")
 
 
-def root_split_figure(f7_table, split_ts):
+def root_split_figure(split_table, split_ts):
     """Root-split panels (a-c), non-root-singleton rebalances shaded."""
-    dates_idx = f7_table.index
-    non_singleton_dates = dates_idx[~f7_table["root_singleton"].to_numpy()]
+    dates_idx = split_table.index
+    non_singleton_dates = dates_idx[~split_table["root_singleton"].to_numpy()]
     diffs = dates_idx.to_series().diff().dropna()
     half_width = diffs.median() / 2 if len(diffs) else pd.Timedelta(days=15)
 
@@ -509,8 +509,8 @@ def root_split_figure(f7_table, split_ts):
 
     ax = axes[0]
     shade_non_singleton(ax)
-    ax.plot(f7_table.index, f7_table["sigma_UUP"], label=r"$\sigma_{\mathrm{UUP}}$", color=ml.plotting.HIGHLIGHT, lw=1.1)
-    ax.plot(f7_table.index, f7_table["sqrt_V_rest"], label=r"$\sqrt{V_{\mathrm{rest}}}$", color="#555555", lw=1.1)
+    ax.plot(split_table.index, split_table["sigma_UUP"], label=r"$\sigma_{\mathrm{UUP}}$", color=ml.plotting.HIGHLIGHT, lw=1.1)
+    ax.plot(split_table.index, split_table["sqrt_V_rest"], label=r"$\sqrt{V_{\mathrm{rest}}}$", color="#555555", lw=1.1)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
     ax.set_ylabel("annualized volatility (%)")
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -519,12 +519,12 @@ def root_split_figure(f7_table, split_ts):
 
     ax = axes[1]
     shade_non_singleton(ax)
-    ax.plot(f7_table.index, f7_table["w_UUP_HRP"], label=r"$w_{\mathrm{UUP}}$ HRP(S)", color=ml.plotting.run_color("HRP(S)"), lw=1.3)
-    ax.plot(f7_table.index, f7_table["identity"], label=r"identity $V_{\mathrm{rest}}/(\sigma^2_{\mathrm{UUP}} + V_{\mathrm{rest}})$",
+    ax.plot(split_table.index, split_table["w_UUP_HRP"], label=r"$w_{\mathrm{UUP}}$ HRP(S)", color=ml.plotting.run_color("HRP(S)"), lw=1.3)
+    ax.plot(split_table.index, split_table["identity"], label=r"identity $V_{\mathrm{rest}}/(\sigma^2_{\mathrm{UUP}} + V_{\mathrm{rest}})$",
             color=ml.plotting.run_color("HRP(S)"), lw=1.0, ls="--")
-    ax.plot(f7_table.index, f7_table["w_UUP_GMV"], label=r"$w_{\mathrm{UUP}}$ GMV(S)",
+    ax.plot(split_table.index, split_table["w_UUP_GMV"], label=r"$w_{\mathrm{UUP}}$ GMV(S)",
             color=ml.plotting.run_color("GMV(S)"), lw=0.7)
-    ax.plot(f7_table.index, f7_table["w_UUP_ERC"], label=r"$w_{\mathrm{UUP}}$ ERC(S)", color=ml.plotting.run_color("ERC(S)"), lw=0.7)
+    ax.plot(split_table.index, split_table["w_UUP_ERC"], label=r"$w_{\mathrm{UUP}}$ ERC(S)", color=ml.plotting.run_color("ERC(S)"), lw=0.7)
     ax.axvline(split_ts, color="black", ls=":", lw=1)
     ax.set_ylabel("UUP weight (%)")
     ax.yaxis.set_major_formatter(PercentFormatter(1.0))
@@ -533,7 +533,7 @@ def root_split_figure(f7_table, split_ts):
 
     ax = axes[2]
     shade_non_singleton(ax)
-    ax.plot(f7_table.index, f7_table["rho_bar_rest"], color="#2c3e50", lw=1.1)
+    ax.plot(split_table.index, split_table["rho_bar_rest"], color="#2c3e50", lw=1.1)
     ax.axhline(0, color="black", lw=0.5)
     ax.axvline(split_ts, color="black", ls=":", lw=1)
     ax.set_ylabel("mean pairwise corr\n(12 non-UUP)")
@@ -544,9 +544,9 @@ def root_split_figure(f7_table, split_ts):
     return fig
 
 
-def f7_summary_row(f7_table, mask_or_date):
+def root_split_summary_row(split_table, mask_or_date):
     if isinstance(mask_or_date, pd.Timestamp):
-        row = f7_table.loc[mask_or_date]
+        row = split_table.loc[mask_or_date]
         return {
             "median_sigma_UUP": float(row["sigma_UUP"]),
             "median_sqrt_V_rest": float(row["sqrt_V_rest"]),
@@ -555,7 +555,7 @@ def f7_summary_row(f7_table, mask_or_date):
             "median_w_UUP_HRP": float(row["w_UUP_HRP"]),
             "root_singleton_share": float(row["root_singleton"]),
         }
-    sub = f7_table.loc[mask_or_date]
+    sub = split_table.loc[mask_or_date]
     ratio = sub["sqrt_V_rest"] / sub["sigma_UUP"]
     return {
         "median_sigma_UUP": float(sub["sigma_UUP"].median()),
@@ -565,15 +565,3 @@ def f7_summary_row(f7_table, mask_or_date):
         "median_w_UUP_HRP": float(sub["w_UUP_HRP"].median()),
         "root_singleton_share": float(sub["root_singleton"].mean()),
     }
-
-
-def run_group(name):
-    if name == "HRP(S)":
-        return "registered"
-    if name in ("HRP(LW)", "HRP[pos](S)", "HRP[ward](S)"):
-        return "sensitivity"
-    if name == "IVP":
-        return "reference"
-    if name in ("EW", "60/40"):
-        return "benchmark"
-    return "reproduction gate"

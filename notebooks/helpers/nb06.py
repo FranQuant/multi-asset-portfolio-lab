@@ -206,15 +206,3 @@ def mechanism_checks(panel, rdates):
         })
 
     return pd.DataFrame(mech5_rows).set_index("estimator")
-
-
-def run_group(name):
-    if name == "ERC(S)":
-        return "registered"
-    if name == "ERC(LW)":
-        return "sensitivity"
-    if name == "IV":
-        return "reference"
-    if name in ("EW", "60/40"):
-        return "benchmark"
-    return "reproduction gate"

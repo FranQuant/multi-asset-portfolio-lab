@@ -2,7 +2,7 @@
 
 The statistics come from maplab.robust / maplab.inference; the notebook 01-07 run
 construction, summary table and excess-return windows are notebook 08's
-(_nb08_helpers). This module builds the lookback grid, the H3 descriptive
+(helpers.nb08). This module builds the lookback grid, the H3 descriptive
 table, the figures and the variance-ratio profile that notebook 09 prints,
 asserts and plots.
 """

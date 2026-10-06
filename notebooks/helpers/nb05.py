@@ -128,13 +128,3 @@ def vol_corr_figure(panel, results, asof):
     ax.set_title(f"{asof.date()}: vol vs mean correlation; marker area = MDP(S) weight (hollow = 0)")
     fig.tight_layout()
     return fig
-
-
-def run_group(name):
-    if name == "MDP(S)":
-        return "registered"
-    if name in ("MDP(LW)", "IV"):
-        return "sensitivity"
-    if name in ("EW", "60/40"):
-        return "benchmark"
-    return "reproduction gate"

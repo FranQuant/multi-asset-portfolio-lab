@@ -1,6 +1,6 @@
 """Notebook-11-only data, tables and figures for Sharpe inference.
 
-Runs, excess-return frames and windows are notebook 08's (_nb08_helpers); all
+Runs, excess-return frames and windows are notebook 08's (helpers.nb08); all
 statistics come from maplab.sharpe and maplab.robust. Every Sharpe ratio here
 is per observation (daily) unless a column says "ann"; annualising (x sqrt(252))
 is for labels only.

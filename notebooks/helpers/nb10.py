@@ -1,7 +1,7 @@
 """Notebook-10-only overlay runs, gates, tables and statistics.
 
 Base runs, the summary table and excess-return frames are notebook
-08's (_nb08_helpers); the overlay is maplab.vol_overlay; the statistics come
+08's (helpers.nb08); the overlay is maplab.vol_overlay; the statistics come
 from maplab.robust / maplab.inference. Figures are added in a later step.
 """
 import numpy as np
@@ -84,7 +84,7 @@ def build_overlays(runs, rf_daily, params=REGISTERED, names=BASES) -> dict:
 
 # ---------------------------------------------------------------- gates
 def identity_table(runs, overlays, rf_daily) -> pd.DataFrame:
-    """G2: c = 1 reproduces base bit-for-bit; net rebuilt from h, r, BIL, cost;
+    """Identity gate: c = 1 reproduces base bit-for-bit; net rebuilt from h, r, BIL, cost;
     live date; warm-up c = 1; range of h; indexes aligned."""
     rows = []
     for lab, o in overlays.items():
@@ -111,7 +111,7 @@ def identity_table(runs, overlays, rf_daily) -> pd.DataFrame:
 
 
 def shock_check(runs, rf_daily, name, at, bump=0.05, params=REGISTERED) -> dict:
-    """G3: add `bump` to the base return on day `at`; c up to and including `at`
+    """Shock gate: add `bump` to the base return on day `at`; c up to and including `at`
     must not move (it uses information through t-1); c the next day must."""
     base = runs[name]["net"]
     shocked = base.copy()

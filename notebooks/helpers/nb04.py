@@ -156,14 +156,6 @@ def weight_tables(panel, dates):
     return pd.DataFrame(weight_rows).set_index(["asof", "strategy", "estimator"]), weight_frames
 
 
-def run_group(name):
-    if "(OAS)" in name:
-        return "sensitivity"
-    if name in ("EW", "60/40"):
-        return "benchmark"
-    return "registered"
-
-
 def cumulative_lw_figure(paired_series, split_ts):
     """§8 figure: cumulative LW - sample net-return difference per family."""
     fig, ax = plt.subplots(figsize=(9.5, 4.5))

@@ -101,7 +101,7 @@ def longonly_maxsharpe(Sigma: np.ndarray, mu: np.ndarray) -> np.ndarray:
 
 
 def capm_collapse(log_returns, excess, asof_dates):
-    """CAPM-collapse check per as-of date: A1 (CAPM) and A2 (MKT/TERM/CREDIT)
+    """CAPM-collapse check per as-of date: CAPM and three-factor (MKT/TERM/CREDIT)
     tangency / long-only max-Sharpe weights, plus the algebra check
     Σx⁻¹Bλ = W(W'ΣxW)⁻¹λ. Returns [{asof, designs, rel1, rel2}]."""
     TICKERS = ml.UNIVERSE
@@ -121,36 +121,36 @@ def capm_collapse(log_returns, excess, asof_dates):
             "CREDIT": X_win["HYG"] - X_win["IEF"],
         })
 
-        W_A1 = np.zeros((N, 1))
-        W_A1[TICKER_IDX["SPY"], 0] = 1.0
-        W_A2 = np.zeros((N, 3))
-        W_A2[TICKER_IDX["SPY"], 0] = 1.0
-        W_A2[TICKER_IDX["TLT"], 1] = 1.0
-        W_A2[TICKER_IDX["HYG"], 2] = 1.0
-        W_A2[TICKER_IDX["IEF"], 2] = -1.0
+        W_capm = np.zeros((N, 1))
+        W_capm[TICKER_IDX["SPY"], 0] = 1.0
+        W_3f = np.zeros((N, 3))
+        W_3f[TICKER_IDX["SPY"], 0] = 1.0
+        W_3f[TICKER_IDX["TLT"], 1] = 1.0
+        W_3f[TICKER_IDX["HYG"], 2] = 1.0
+        W_3f[TICKER_IDX["IEF"], 2] = -1.0
 
-        lam_A1 = np.array([0.05])
-        lam_A2 = np.array([0.05, 0.015, 0.01])
+        lam_capm = np.array([0.05])
+        lam_3f = np.array([0.05, 0.015, 0.01])
 
         B_capm = factor_betas(X_win[TICKERS], fac_x[["MKT"]]).to_numpy()
-        B_a2 = factor_betas(X_win[TICKERS], fac_x[["MKT", "TERM", "CREDIT"]]).to_numpy()
+        B_3f = factor_betas(X_win[TICKERS], fac_x[["MKT", "TERM", "CREDIT"]]).to_numpy()
 
-        mu_A1 = B_capm @ lam_A1
-        mu_A2 = B_a2 @ lam_A2
+        mu_capm = B_capm @ lam_capm
+        mu_3f = B_3f @ lam_3f
 
         designs = {
-            "CAPM tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A1),
-            "CAPM long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A1),
-            "three-factor tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_A2),
-            "three-factor long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_A2),
+            "CAPM tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_capm),
+            "CAPM long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_capm),
+            "three-factor tangency (unconstrained)": unconstrained_tangency(Sigma_x, mu_3f),
+            "three-factor long-only max-Sharpe": longonly_maxsharpe(Sigma_x, mu_3f),
         }
 
-        lhs1 = np.linalg.solve(Sigma_x, mu_A1)
-        rhs1 = W_A1 @ np.linalg.solve(W_A1.T @ Sigma_x @ W_A1, lam_A1)
+        lhs1 = np.linalg.solve(Sigma_x, mu_capm)
+        rhs1 = W_capm @ np.linalg.solve(W_capm.T @ Sigma_x @ W_capm, lam_capm)
         rel1 = np.linalg.norm(lhs1 - rhs1) / np.linalg.norm(lhs1)
 
-        lhs2 = np.linalg.solve(Sigma_x, mu_A2)
-        rhs2 = W_A2 @ np.linalg.solve(W_A2.T @ Sigma_x @ W_A2, lam_A2)
+        lhs2 = np.linalg.solve(Sigma_x, mu_3f)
+        rhs2 = W_3f @ np.linalg.solve(W_3f.T @ Sigma_x @ W_3f, lam_3f)
         rel2 = np.linalg.norm(lhs2 - rhs2) / np.linalg.norm(lhs2)
 
         out.append({"asof": asof, "designs": designs, "rel1": rel1, "rel2": rel2})
@@ -172,8 +172,8 @@ def minvar_with_linear_constraints(Sigma: np.ndarray, A: np.ndarray, b: np.ndarr
     return res.x, res.success, res.message
 
 
-def design_d3(log_returns, excess, factors3, asof_dates):
-    """Design D3 per as-of date: long-only min-variance subject to 1'w = 1 and
+def beta_target_minvar(log_returns, excess, factors3, asof_dates):
+    """Beta-target min-variance per as-of date: long-only min-variance subject to 1'w = 1 and
     B'w = [0.5, 0.1, 0.1] on MKT/SIZE/VALUE betas. Returns [(asof, w, ok, msg)]."""
     TICKERS = ml.UNIVERSE
     N = len(TICKERS)
