@@ -1,5 +1,5 @@
 """HAC, Sharpe-difference, bootstrap and multiple-testing tools for the
-Phase 2 comparison notebooks.
+comparison notebooks (08-11).
 
 All inputs are daily EXCESS returns unless stated. numpy/pandas/math only.
 """

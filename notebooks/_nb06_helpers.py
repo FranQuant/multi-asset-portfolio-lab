@@ -6,6 +6,8 @@ shows them.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
 from maplab import GMV, MaxSharpe
@@ -77,7 +79,7 @@ def snapshot_tables(panel, dates):
 
 
 def mechanism_grid(panel, dates):
-    """Figure F2: capital weight vs. variance share, GMV/MDP/ERC/EW x
+    """Capital weight vs. variance share, GMV/MDP/ERC/EW x
     dates. Returns (fig, grid_table)."""
     methods = ["GMV", "MDP", "ERC", "EW"]
     tickers = ml.UNIVERSE
@@ -93,8 +95,8 @@ def mechanism_grid(panel, dates):
         n = Sigma_np.shape[0]
 
         w_gmv = _min_variance_long_only(Sigma)
-        w_mdp, _ = _mdp_long_only(Sigma, "F2", asof)
-        w_erc, _ = _erc_long_only(Sigma, "F2", asof)
+        w_mdp, _ = _mdp_long_only(Sigma, "capital-vs-variance", asof)
+        w_erc, _ = _erc_long_only(Sigma, "capital-vs-variance", asof)
         w_ew = np.full(n, 1.0 / n)
         weights = {"GMV": w_gmv, "MDP": w_mdp, "ERC": w_erc, "EW": w_ew}
 
@@ -107,14 +109,17 @@ def mechanism_grid(panel, dates):
 
             ax = axes[r, c]
             x = np.arange(n)
-            colors_cash = ["#c0392b" if t == "UUP" else "#1f4e79" for t in tickers]
-            colors_rc = ["#c0392b" if t == "UUP" else "#2e7d32" for t in tickers]
-            ax.bar(x - 0.2, w, width=0.4, color=colors_cash, alpha=0.9,
+            colors_cash = [ml.plotting.HIGHLIGHT if t == "UUP" else "#2c3e50" for t in tickers]
+            colors_rc = [ml.plotting.HIGHLIGHT if t == "UUP" else "#bbbbbb" for t in tickers]
+            ax.bar(x - 0.2, w, width=0.4, color=colors_cash,
                    label="capital weight" if r == 0 and c == 0 else None)
             ax.bar(x + 0.2, rc_share, width=0.4, color=colors_rc, alpha=0.6,
                    label="variance share" if r == 0 and c == 0 else None)
             ax.axhline(one_over_n, color="black", ls="--", lw=0.8)
-            ax.set_title(f"{asof.date()} - {name}", fontsize=8)
+            ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+            if c == 0:
+                ax.set_ylabel("weight or variance share (%)")
+            ax.set_title(f"{asof.date()} — {name}", fontsize=8)
             if r == 2:
                 ax.set_xticks(x); ax.set_xticklabels(tickers, rotation=90, fontsize=6)
             else:
@@ -126,6 +131,8 @@ def mechanism_grid(panel, dates):
                 "UUP_beta_p": float(beta_p[iU]), "effN": ml.diagnostics.effective_n(w),
             })
 
+    axes[0, 0].legend(handles=[Patch(color="#2c3e50", label="capital weight"),
+                               Patch(color="#bbbbbb", alpha=0.6, label="variance share")], fontsize=7)
     fig.suptitle("Capital weight vs. variance share (dashed = 1/13)")
     plt.tight_layout()
 

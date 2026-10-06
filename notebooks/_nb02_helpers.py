@@ -25,7 +25,7 @@ def sml_figure(capm_table):
     """Security market line: empirical fit vs the CAPM line through (0,0)
     and (1, SPY). Returns (fig, slope, intercept, spy_excess_ann)."""
     fig, ax = plt.subplots(figsize=(7, 5.5))
-    ax.scatter(capm_table["beta"], capm_table["ann_excess_return"], s=40, color="#2e7d32", zorder=3)
+    ax.scatter(capm_table["beta"], capm_table["ann_excess_return"], s=40, color="#555555", zorder=3)
     for tkr, row in capm_table.iterrows():
         ax.annotate(tkr, (row["beta"], row["ann_excess_return"]), fontsize=8,
                     xytext=(4, 4), textcoords="offset points")
@@ -36,7 +36,7 @@ def sml_figure(capm_table):
             label=f"empirical SML fit (slope={slope:.3f}, intercept={intercept:.3f})")
 
     spy_excess_ann = float(capm_table.loc["SPY", "ann_excess_return"])
-    ax.plot(beta_grid, spy_excess_ann * beta_grid, color="#b33", ls=":", lw=1.5,
+    ax.plot(beta_grid, spy_excess_ann * beta_grid, color="#555555", ls=":", lw=1.5,
             label=f"CAPM line through (0,0) & (1, SPY={spy_excess_ann:.2%})")
 
     ax.axhline(0, color="#cccccc", lw=0.8)
@@ -57,13 +57,14 @@ def rolling_beta(asset_excess: pd.Series, mkt_excess: pd.Series, window: int = 2
 def rolling_beta_figure(excess, MKT):
     """Rolling 252d beta vs MKT for TLT/UUP/GLD/HYG."""
     fig, ax = plt.subplots(figsize=(9, 5))
+    colors = {"TLT": "#4292c6", "UUP": ml.plotting.HIGHLIGHT, "GLD": "#d4a017", "HYG": "#8e44ad"}
     for tkr in ["TLT", "UUP", "GLD", "HYG"]:
         rb = rolling_beta(excess[tkr], MKT)
-        ax.plot(rb.index, rb.to_numpy(), label=tkr, lw=1.2)
-    ax.axhline(1.0, color="#999999", ls=":", lw=1, label="SPY (=1 by construction)")
+        ax.plot(rb.index, rb.to_numpy(), label=tkr, lw=1.2, color=colors[tkr])
+    ax.axhline(1.0, color="#999999", ls=":", lw=1, label="SPY (β = 1 by construction)")
     ax.axhline(0.0, color="#cccccc", lw=0.8)
     ax.set_ylabel(r"rolling 252d $\beta$ vs MKT")
-    ax.set_title("Rolling beta is not stable")
+    ax.set_title("Rolling 252-day β vs MKT")
     ax.legend(fontsize=8, ncol=3)
     plt.tight_layout()
     return fig

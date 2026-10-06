@@ -5,14 +5,45 @@ Import `apply_style()` at the top of every notebook so all charts match.
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 
 FAMILY_COLORS = {
     "Return-based":  "#1f4e79",   # MV, MSR, BL
     "Risk-based":    "#2e7d32",   # GMV, MDP, RP, HRP
-    "Signal-based":  "#c0392b",   # TSMOM, factor tilts
+    "Signal-based":  "#e67e22",   # TSMOM, factor tilts
     "Benchmark":     "#555555",   # EW
     "Overlay":       "#8e44ad",   # VMP
 }
+
+
+# UUP only: no series, family or run may use this colour.
+HIGHLIGHT = "#c0392b"
+
+# One colour per run base name (estimator and parameter variants share it; where two
+# variants appear in one figure they are told apart by line style or hatch).
+RUN_COLORS = {
+    "MaxSharpe":   "#1f4e79",
+    "BL":          "#5dade2",
+    "GMV":         "#2e7d32",
+    "BMV":         "#81c784",
+    "BetaMinVar":  "#81c784",
+    "MDP":         "#6d4c41",
+    "ERC":         "#d4a017",
+    "HRP":         "#8e44ad",
+    "EW":          "#555555",
+    "EqualWeight": "#555555",
+    "60/40":       "#17a2b8",
+    "IV":          "#999999",
+    "IVP":         "#999999",
+}
+
+# Pair lines of cumulative_paired without an explicit colour, in call order.
+PAIR_CYCLE = ["#1f4e79", "#2e7d32", "#d4a017", "#8e44ad", "#555555"]
+
+# Display names of asset groups (keys of contract.ASSET_GROUPS) in legends and tables.
+GROUP_LABELS = {"inflation_linked": "inflation-linked", "real_assets": "real assets"}
+
+_VARIANT_LS = ["-", "--", ":", "-."]
 
 
 def apply_style():
@@ -41,27 +72,20 @@ import numpy as np
 from .contract import ASSET_GROUPS, GROUP_OF
 from .diagnostics import long_only_frontier, port_vol, weights_by_group
 
-# Snapshot-map markers (nb07 F1).
+# Snapshot-map markers.
 METHOD_STYLES = {
-    "HRP":         {"marker": "o", "s": 170, "color": "#8e44ad", "label": "HRP"},
-    "GMV":         {"marker": "*", "s": 200, "color": FAMILY_COLORS["Risk-based"], "label": "GMV"},
-    "MDP":         {"marker": "P", "s": 140, "color": FAMILY_COLORS["Risk-based"], "label": "MDP"},
-    "ERC":         {"marker": "X", "s": 160, "color": "#d4a017", "label": "ERC"},
-    "MaxSharpe":   {"marker": "*", "s": 200, "color": FAMILY_COLORS["Return-based"], "label": "MaxSharpe"},
-    "EqualWeight": {"marker": "D", "s": 90, "color": FAMILY_COLORS["Benchmark"], "label": "EqualWeight"},
-    "IVP":         {"marker": "^", "s": 110, "color": "#555555", "label": "IVP"},
-    "IV":          {"marker": "^", "s": 110, "color": "#555555", "label": "IV"},
+    "HRP":         {"marker": "o", "s": 170, "color": RUN_COLORS["HRP"], "label": "HRP"},
+    "GMV":         {"marker": "*", "s": 200, "color": RUN_COLORS["GMV"], "label": "GMV"},
+    "MDP":         {"marker": "P", "s": 140, "color": RUN_COLORS["MDP"], "label": "MDP"},
+    "ERC":         {"marker": "X", "s": 160, "color": RUN_COLORS["ERC"], "label": "ERC"},
+    "MaxSharpe":   {"marker": "*", "s": 200, "color": RUN_COLORS["MaxSharpe"], "label": "MaxSharpe"},
+    "EqualWeight": {"marker": "D", "s": 90, "color": RUN_COLORS["EqualWeight"], "label": "EW"},
+    "IVP":         {"marker": "^", "s": 110, "color": RUN_COLORS["IVP"], "label": "IVP"},
+    "IV":          {"marker": "^", "s": 110, "color": RUN_COLORS["IV"], "label": "IV"},
 }
 
-# Time-series line colors (nb07 F4).
-METHOD_COLORS = {
-    "HRP": "#8e44ad",
-    "ERC": "#d4a017",
-    "MDP": FAMILY_COLORS["Risk-based"],
-    "GMV": "#555555",
-    "EW": "#999999",
-    "60/40": "#17a2b8",
-}
+# Time-series line colors (alias of RUN_COLORS).
+METHOD_COLORS = dict(RUN_COLORS)
 
 
 def _base_name(label: str) -> str:
@@ -78,9 +102,29 @@ def _color_for(label: str):
     return METHOD_COLORS.get(_base_name(label))
 
 
+def run_color(label: str) -> str:
+    """RUN_COLORS entry of a run label (estimator / parameter tag ignored); raises
+    KeyError for a run without a colour."""
+    base = _base_name(label)
+    if base not in RUN_COLORS:
+        raise KeyError(f"run_color: no colour for run {label!r} (base {base!r})")
+    return RUN_COLORS[base]
+
+
+def _variant_linestyles(names) -> dict:
+    """Line style per run name: variants sharing a base colour are told apart by style."""
+    seen: dict = {}
+    out = {}
+    for n in names:
+        k = seen.setdefault(_base_name(n), [])
+        out[n] = _VARIANT_LS[len(k) % len(_VARIANT_LS)]
+        k.append(n)
+    return out
+
+
 def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=(10, 6),
                  legend_outside=True, n_random=20000, dirichlet_alpha=0.3, seed=7, styles=None):
-    """Snapshot risk/return map (nb07 F1): random long-only cloud, assets
+    """Snapshot risk/return map: random long-only cloud, assets
     colored by group, long-only frontier (dashed below GMV), one marker per
     method in `weights` (name -> weight vector in Sigma's column order)."""
     from .models import _min_variance_long_only
@@ -99,8 +143,8 @@ def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=
     frontier_vol, frontier_ret = long_only_frontier(Sigma_np, mu_np)
 
     fig, ax = plt.subplots(figsize=figsize)
-    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.15, color="#bbbbbb", zorder=0,
-               label=f"random long-only portfolios (Dirichlet a={dirichlet_alpha:g})")
+    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.12, color="#bbbbbb", zorder=0,
+               label=f"random long-only portfolios (Dirichlet α={dirichlet_alpha:g})")
 
     asset_vol = np.sqrt(np.diag(Sigma_np))
     group_order = list(ASSET_GROUPS.keys())
@@ -109,12 +153,12 @@ def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=
         grp = GROUP_OF[tkr]
         is_hl = tkr == highlight
         ax.scatter(asset_vol[i], mu_np[i], s=45 if is_hl else 30,
-                   color="#c0392b" if is_hl else group_colors[grp],
+                   color=HIGHLIGHT if is_hl else group_colors[grp],
                    edgecolors="black" if is_hl else "none", linewidths=1.0 if is_hl else 0.0,
                    zorder=5 if is_hl else 2)
         ax.annotate(tkr, (asset_vol[i], mu_np[i]), fontsize=6,
                     xytext=(3, 3), textcoords="offset points",
-                    color="#c0392b" if is_hl else "#666666",
+                    color=HIGHLIGHT if is_hl else "#666666",
                     fontweight="bold" if is_hl else "normal",
                     zorder=5 if is_hl else 2)
 
@@ -132,8 +176,10 @@ def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=
         ax.scatter([vol], [ret], marker=st["marker"], s=st["s"], color=st["color"], zorder=4,
                    label=st.get("label", name))
 
-    ax.set_xlabel("annualized volatility")
-    ax.set_ylabel("annualized arithmetic expected return (mu)")
+    ax.set_xlabel("annualized volatility (%)")
+    ax.set_ylabel("annualized expected return μ (%)")
+    ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     if title is not None:
         ax.set_title(title)
     if legend_outside:
@@ -145,8 +191,8 @@ def snapshot_map(Sigma, mu, weights: dict, title=None, highlight="UUP", figsize=
 
 
 def group_stackplot(results: dict, names: list, figsize=None,
-                    title_fmt="{name} -- target weights by asset group", split_ts=None):
-    """Target weights by asset group, one stacked panel per run (nb06/nb07 F3)."""
+                    title_fmt="{name} — target weights by asset group", split_ts=None):
+    """Target weights by asset group, one stacked panel per run."""
     if figsize is None:
         figsize = (9, 13) if len(names) == 4 else (9, 10)
     group_order = list(ASSET_GROUPS.keys())
@@ -156,10 +202,13 @@ def group_stackplot(results: dict, names: list, figsize=None,
     axes = axes[:, 0]
     for ax, name in zip(axes, names):
         grouped = weights_by_group(results[name]["wlog"])
-        ax.stackplot(grouped.index, grouped.T.to_numpy(), labels=group_order, colors=group_colors)
+        ax.stackplot(grouped.index, grouped.T.to_numpy(), labels=[GROUP_LABELS.get(g, g) for g in group_order],
+                     colors=group_colors)
         if split_ts is not None:
             ax.axvline(split_ts, color="black", ls=":", lw=1)
         ax.set_ylim(0, 1)
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+        ax.set_ylabel("weight (%)")
         ax.set_title(title_fmt.format(name=name))
     axes[-1].set_xlabel("rebalance date")
     handles, labels = axes[0].get_legend_handles_labels()
@@ -171,16 +220,16 @@ def group_stackplot(results: dict, names: list, figsize=None,
 def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "highlight"), ref="EW",
                         highlight="UUP", split_ts=None, figsize=(9.5, 11), suptitle=None, colors=None,
                         titles=None, percent=True, effn_floor=None, split_label=None,
-                        xlabel="rebalance date"):
+                        xlabel="rebalance date", ref_label=None):
     """effN / max weight / highlight-asset weight over rebalances, one row
-    each (nb07 F4; also nb03 cell 15 and nb05 cells 19/22 via rows, figsize,
-    titles, percent, effn_floor, split_label, xlabel). Optional row "turnover":
+    each (rows, figsize, titles, percent, effn_floor, split_label and xlabel are
+    set per notebook). Optional row "turnover":
     trailing 12-rebalance sum of diag["turnover_per_rebalance"], first entry
     (initial allocation from cash) dropped."""
     scale = 100 if percent else 1
     unit = " (%)" if percent else ""
     ylabels = {"effN": "effective N", "max_w": f"max weight{unit}", "highlight": f"{highlight} weight{unit}",
-               "turnover": f"trailing 12-rebalance one-way turnover{' (%/yr)' if percent else ' (/yr)'}"}
+               "turnover": f"turnover ({'%' if percent else 'fraction'}/yr, trailing 12 rebalances)"}
 
     def series(name, row):
         wlog = results[name]["wlog"]
@@ -195,24 +244,41 @@ def concentration_panel(results: dict, names: list, rows=("effN", "max_w", "high
             return tlog.rolling(12, min_periods=12).sum() * scale
         raise ValueError(f"concentration_panel: unknown row {row!r}")
 
+    from matplotlib.lines import Line2D
+
+    ref_name = ref_label if ref_label is not None else ref
+    styles = _variant_linestyles(names)
     fig, axes = plt.subplots(len(rows), 1, figsize=figsize, sharex=True, squeeze=False)
     axes = axes[:, 0]
     for k, (ax, row) in enumerate(zip(axes, rows)):
+        specific = []
         for name in names:
             ts = series(name, row)
             color = colors[name] if colors and name in colors else _color_for(name)
-            ax.plot(ts.index, ts.to_numpy(), label=name, color=color, lw=1.2)
+            ax.plot(ts.index, ts.to_numpy(), label=name, color=color, lw=1.2, ls=styles[name])
         if row in ("effN", "turnover") and ref is not None:
             ts = series(ref, row)
-            ax.plot(ts.index, ts.to_numpy(), label=ref, color="#999999", lw=0.8, ls="--")
+            ax.plot(ts.index, ts.to_numpy(), label=ref_name, color=RUN_COLORS["EW"], lw=0.8, ls="--")
         if row == "effN" and effn_floor is not None:
-            ax.axhline(effn_floor, color="#888888", ls="--", lw=1, label=f"effN floor = {effn_floor:g}")
-        if split_ts is not None:
-            ax.axvline(split_ts, color="black", ls=":", lw=1, label=split_label)
+            specific.append(ax.axhline(effn_floor, color="#888888", ls="--", lw=1,
+                                       label=f"effective-N floor = {effn_floor:g}"))
+        if split_ts is not None and split_label is not None:
+            specific.append(ax.axvline(split_ts, color="black", ls=":", lw=1, label=split_label))
+        elif split_ts is not None:
+            ax.axvline(split_ts, color="black", ls=":", lw=1)
         ax.set_ylabel(ylabels[row])
         if titles is not None:
             ax.set_title(titles[k])
-        ax.legend(fontsize=8)
+        handles = []
+        if k == 0:
+            for name in names:
+                color = colors[name] if colors and name in colors else _color_for(name)
+                handles.append(Line2D([], [], color=color, lw=1.2, ls=styles[name], label=name))
+            if ref is not None:
+                handles.append(Line2D([], [], color=RUN_COLORS["EW"], lw=0.8, ls="--", label=ref_name))
+        handles += specific
+        if handles:
+            ax.legend(handles=handles, fontsize=8, loc="upper left", bbox_to_anchor=(1.01, 1), borderaxespad=0)
     if xlabel is not None:
         axes[-1].set_xlabel(xlabel)
     if suptitle is not None:
@@ -241,14 +307,16 @@ def capital_vs_risk(weights: dict, Sigma, highlight="UUP", title=None, figsize=N
         w = w.reindex(tickers)
         rc = risk_contributions(w, Sigma)
         share = rc / rc.sum()
-        cap_colors = ["#c0392b" if t == highlight else "#1f4e79" for t in tickers]
-        risk_colors = ["#c0392b" if t == highlight else "#2e7d32" for t in tickers]
+        cap_colors = [HIGHLIGHT if t == highlight else "#2c3e50" for t in tickers]
+        risk_colors = [HIGHLIGHT if t == highlight else "#bbbbbb" for t in tickers]
         ax.bar(x - 0.2, w.to_numpy(), width=0.4, color=cap_colors, label="capital weight")
         ax.bar(x + 0.2, share.to_numpy(), width=0.4, color=risk_colors, alpha=0.6, label="risk share")
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))
         ax.axhline(1.0 / n, color="black", ls="--", lw=0.8, label="1/N")
         ax.set_xticks(x)
         ax.set_xticklabels(tickers, rotation=90, fontsize=6)
         ax.set_title(name)
+    axes[0].set_ylabel("weight or risk share (%)")
     handles, labels = axes[0].get_legend_handles_labels()
     axes[-1].legend(handles, labels, loc="upper left", bbox_to_anchor=(1.01, 1), fontsize=8)
     if title is not None:
@@ -259,38 +327,39 @@ def capital_vs_risk(weights: dict, Sigma, highlight="UUP", title=None, figsize=N
 
 def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = None, mkt_excess=None,
                       ax=None, title=None, ylabel="cumulative diff (%)", legend_kw=None, colors=None):
-    """Cumulative paired daily differences in % (nb06 F5 / nb07 F5). With
-    `beta` ("a - b" -> beta_hat) and `mkt_excess`: solid = beta-adjusted,
+    """Cumulative paired daily differences in %. With
+    `beta` ("a - b" -> beta_hat) and `mkt_excess`: solid = β-adjusted,
     dashed = total; otherwise solid totals only. `colors` ("a - b" -> color)
-    fixes a pair's line colour; pairs not in it use matplotlib's cycle."""
+    fixes a pair's line colour; pairs not in it take PAIR_CYCLE in call order.
+    Keys stay ASCII ("a - b"); legend labels show "a − b"."""
     own_fig = ax is None
     if own_fig:
         fig, ax = plt.subplots(figsize=(9.5, 5))
 
     if beta is not None:
-        for a_name, b_name in pairs:
+        for i, (a_name, b_name) in enumerate(pairs):
             pair_key = f"{a_name} - {b_name}"
             diff = paired_series[(a_name, b_name)]
             beta_hat = float(beta[pair_key])
             idx = diff.index.intersection(mkt_excess.index)
             adj = (diff.loc[idx] - beta_hat * mkt_excess.loc[idx]).cumsum() * 100
             total = diff.cumsum() * 100
-            ckw = {"color": colors[pair_key]} if colors and pair_key in colors else {}
-            line, = ax.plot(adj.index, adj.to_numpy(), lw=1.1, label=pair_key, **ckw)
+            ckw = {"color": colors[pair_key] if colors and pair_key in colors else PAIR_CYCLE[i % len(PAIR_CYCLE)]}
+            line, = ax.plot(adj.index, adj.to_numpy(), lw=1.1, label=f"{a_name} − {b_name}", **ckw)
             ax.plot(total.index, total.to_numpy(), lw=0.8, ls="--", color=line.get_color())
-        ax.axvline(split_ts, color="black", ls=":", lw=1)
+        ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
         ax.axhline(0, color="black", lw=0.6)
         ax.set_ylabel(ylabel)
         if title is not None:
             ax.set_title(title)
         ax.legend(**(legend_kw if legend_kw is not None else {"fontsize": 7, "ncol": 2}))
     else:
-        for a_name, b_name in pairs:
+        for i, (a_name, b_name) in enumerate(pairs):
             diff = paired_series[(a_name, b_name)]
             cum = diff.cumsum() * 100
             key = f"{a_name} - {b_name}"
-            ckw = {"color": colors[key]} if colors and key in colors else {}
-            ax.plot(cum.index, cum.to_numpy(), lw=1.1, label=key, **ckw)
+            ckw = {"color": colors[key] if colors and key in colors else PAIR_CYCLE[i % len(PAIR_CYCLE)]}
+            ax.plot(cum.index, cum.to_numpy(), lw=1.1, label=f"{a_name} − {b_name}", **ckw)
         ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
         ax.axhline(0, color="black", lw=0.6)
         ax.set_ylabel(ylabel)
@@ -304,7 +373,7 @@ def cumulative_paired(paired_series: dict, pairs, split_ts, beta: dict | None = 
     return ax.figure
 
 
-# ── Phase 2 comparison figures ──────────────────────────────────────────────
+# ── Comparison figures ──────────────────────────────────────────────────────
 
 def _line_style(label: str, styles: dict | None) -> dict:
     """Line color for a run label: `styles` override, else METHOD_COLORS /

@@ -81,20 +81,22 @@ def prior_posterior_figure(panel, asof):
     tickers = list(post01["pi"].index)
     x = np.arange(len(tickers))
     series = [
-        ("Π (EW-implied prior)", post01["pi"], "#999999"),
-        ("μ_BL (k=0.1)", post01["mu_bl"], ml.FAMILY_COLORS[BlackLitterman.family]),
-        ("μ_BL (k=0.2)", post02["mu_bl"], "#c0392b"),
+        ("Π (EW-implied prior)", post01["pi"], "#999999", None),
+        ("μ_BL (k=0.1)", post01["mu_bl"], ml.plotting.RUN_COLORS["BL"], None),
+        ("μ_BL (k=0.2)", post02["mu_bl"], ml.plotting.RUN_COLORS["BL"], "//"),
     ]
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
-    for j, (label, s, color) in enumerate(series):
-        ax.bar(x + (j - 1) * 0.27, 100 * s.reindex(tickers).to_numpy(), width=0.27, color=color, label=label)
+    for j, (label, s, color, hatch) in enumerate(series):
+        ax.bar(x + (j - 1) * 0.27, 100 * s.reindex(tickers).to_numpy(), width=0.27, color=color, label=label,
+               hatch=hatch, edgecolor="white" if hatch else None)
     ax.axhline(0, color="black", lw=0.8)
     ax.set_xticks(x)
     ax.set_xticklabels(tickers, rotation=90)
     for lbl in ax.get_xticklabels():
         if lbl.get_text() in ("UUP", "DBC"):
-            lbl.set_color("#c0392b")
+            if lbl.get_text() == "UUP":
+                lbl.set_color(ml.plotting.HIGHLIGHT)
             lbl.set_fontweight("bold")
     ax.set_ylabel("annualized expected return (%)")
     ax.set_title(f"Prior Π vs posterior μ_BL, {asof.date()}")
@@ -109,16 +111,18 @@ def ew_vs_bl_weights(wtab):
     tickers = list(wtab.index)
     n = len(tickers)
     x = np.arange(n)
-    series = [("EW (1/13)", pd.Series(1.0 / n, index=tickers), "#999999"),
-              ("BL(0.1)", wtab["k=0.1"], ml.FAMILY_COLORS[BlackLitterman.family]),
-              ("BL(0.2)", wtab["k=0.2"], "#c0392b")]
+    bl_color = ml.plotting.RUN_COLORS["BL"]
+    series = [("EW (1/13)", pd.Series(1.0 / n, index=tickers), ml.plotting.RUN_COLORS["EW"], None),
+              ("BL(0.1)", wtab["k=0.1"], bl_color, None),
+              ("BL(0.2)", wtab["k=0.2"], bl_color, "//")]
     if "k=0.4" in wtab.columns:
-        series.append(("k=0.4, snapshot only", wtab["k=0.4"], "#555555"))
+        series.append(("k=0.4, snapshot only", wtab["k=0.4"], bl_color, ".."))
     width = 0.8 / len(series)
 
     fig, ax = plt.subplots(figsize=(10, 4.5))
-    for j, (label, w, color) in enumerate(series):
-        ax.bar(x + (j - (len(series) - 1) / 2) * width, 100 * w.to_numpy(), width=width, color=color, label=label)
+    for j, (label, w, color, hatch) in enumerate(series):
+        ax.bar(x + (j - (len(series) - 1) / 2) * width, 100 * w.to_numpy(), width=width, color=color, label=label,
+               hatch=hatch, edgecolor="white" if hatch else None)
     ax.axhline(100.0 / n, color="black", ls="--", lw=0.8)
     ax.set_xticks(x)
     ax.set_xticklabels(tickers, rotation=90)

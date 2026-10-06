@@ -1,12 +1,13 @@
 """Notebook-10-only overlay runs, gates, tables and statistics.
 
-Base runs, the Phase 1 summary table and excess-return frames are notebook
+Base runs, the summary table and excess-return frames are notebook
 08's (_nb08_helpers); the overlay is maplab.vol_overlay; the statistics come
 from maplab.robust / maplab.inference. Figures are added in a later step.
 """
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
 import _nb08_helpers as h8
@@ -282,7 +283,7 @@ def exposure_by_year(overlays, core) -> pd.DataFrame:
 
 
 def exposure_figure(overlays, core, bench="60/40", figsize=(10, 4)):
-    """F1: held fraction h from LIVE -- range and median across the core
+    """Held fraction h from LIVE -- range and median across the core
     overlays, with the benchmark overlay on top."""
     H = pd.DataFrame({m: overlays[vmp(m)]["h"] for m in core})
     H = H.loc[H.index >= LIVE]
@@ -301,18 +302,17 @@ def exposure_figure(overlays, core, bench="60/40", figsize=(10, 4)):
 
 
 def arrows_figure(perf, names, window="full", figsize=(8.5, 6), tol=(0.12, 0.04)):
-    """F2: one arrow per run from the base (hollow, labelled) to its overlay
+    """One arrow per run from the base (hollow, labelled) to its overlay
     (filled) in (ann_vol, ann_return) for `window`. A label within `tol` (share
     of the x and y data ranges) of one already placed in the same slot moves
     one slot (11 points) down."""
     fig, ax = plt.subplots(figsize=figsize)
-    cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     pts = []
-    for i, n in enumerate(names):
+    for n in names:
         b, v = perf.loc[(n, window)], perf.loc[(vmp(n), window)]
         p0 = (float(b["ann_vol"]), float(b["ann_return"]))
         p1 = (float(v["ann_vol"]), float(v["ann_return"]))
-        pts.append((n, p0, p1, ml.plotting._color_for(n) or cycle[i % len(cycle)]))
+        pts.append((n, p0, p1, ml.plotting.run_color(n)))
     xs = [p[k][0] for p in pts for k in (1, 2)]
     ys = [p[k][1] for p in pts for k in (1, 2)]
     xr, yr = max(xs) - min(xs), max(ys) - min(ys)
@@ -329,8 +329,10 @@ def arrows_figure(perf, names, window="full", figsize=(8.5, 6), tol=(0.12, 0.04)
         ax.annotate(n, p0, textcoords="offset points", xytext=(6, 2 - 11 * slot), fontsize=8, color=c)
     ax.set_xlim(min(xs) - 0.05 * xr, max(xs) + 0.15 * xr)
     ax.set_ylim(min(ys) - 0.08 * yr, max(ys) + 0.08 * yr)
-    ax.set_xlabel("annualized vol")
-    ax.set_ylabel("annualized return")
+    ax.set_xlabel("annualized volatility (%)")
+    ax.set_ylabel("annualized return (%)")
+    ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax.set_title(f"Base (hollow, labelled) to VMP (filled), {window} window from 2010-02-02")
     fig.tight_layout()
     return fig
@@ -343,7 +345,7 @@ def _episode_dd(r: pd.Series) -> pd.Series:
 
 
 def episode_figure(all_runs, core, bench="60/40", figsize=(11, 6.5)):
-    """F3: per registered episode, drawdown (median across the core runs, base
+    """Per registered episode, drawdown (median across the core runs, base
     solid / VMP dashed; benchmark in its colour) and held fraction h (core range,
     core median, benchmark overlay)."""
     import matplotlib.dates as mdates
@@ -373,22 +375,27 @@ def episode_figure(all_runs, core, bench="60/40", figsize=(11, 6.5)):
             loc = mdates.AutoDateLocator()
             ax.xaxis.set_major_locator(loc)
             ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
-    axes[0, 0].legend(fontsize=8, frameon=False, loc="lower left")
-    axes[0, 1].legend(fontsize=8, frameon=False, loc="lower left")
+    handles, labels = [], []
+    for a in (axes[0, 0], axes[0, 1]):
+        for hd, lb in zip(*a.get_legend_handles_labels()):
+            if lb not in labels:
+                handles.append(hd)
+                labels.append(lb)
+    fig.legend(handles, labels, loc="lower center", ncol=3, fontsize=8, frameon=False)
     fig.suptitle("Registered episodes")
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.07, 1, 1))
     return fig
 
 
 def sensitivity_heatmap(sens, names=BASES, window="full", figsize=(7.5, 5)):
-    """F5: Sharpe of each sensitivity variant minus the registered overlay's,
+    """Sharpe of each sensitivity variant minus the registered overlay's,
     per base run, for `window`."""
     t = sens.xs(window, level="window")["dSR_vs_registered"].unstack("variant")
     t = t.loc[list(names), list(SENS)]
     v = t.to_numpy(dtype=float)
     lim = float(np.abs(v).max())
     fig, ax = plt.subplots(figsize=figsize)
-    im = ax.imshow(v, cmap="RdBu", vmin=-lim, vmax=lim, aspect="auto")
+    im = ax.imshow(v, cmap="RdBu_r", vmin=-lim, vmax=lim, aspect="auto")
     ax.set_xticks(range(v.shape[1]), list(t.columns))
     ax.set_yticks(range(v.shape[0]), list(t.index))
     for i in range(v.shape[0]):

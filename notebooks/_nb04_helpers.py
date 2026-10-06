@@ -11,7 +11,7 @@ from sklearn.covariance import LedoitWolf, OAS
 import maplab as ml
 from maplab import GMV, MaxSharpe, BlackLitterman
 
-plot_colors = {"GMV": ml.FAMILY_COLORS["Risk-based"], "MaxSharpe": ml.FAMILY_COLORS["Return-based"], "BL(0.1)": "#8e44ad"}
+plot_colors = {"GMV": ml.plotting.RUN_COLORS["GMV"], "MaxSharpe": ml.plotting.RUN_COLORS["MaxSharpe"], "BL(0.1)": ml.plotting.RUN_COLORS["BL"]}
 
 
 def dose_table(panel, rdates):
@@ -38,19 +38,19 @@ def dose_figure(dose, split_ts):
     """§3 figure: shrinkage dose (top) and condition numbers (bottom)."""
     fig, axes = plt.subplots(2, 1, figsize=(9.5, 6.5), sharex=True)
 
-    axes[0].plot(dose.index, dose["delta_lw"], label="delta_LW", color=ml.FAMILY_COLORS["Risk-based"], lw=1.1)
-    axes[0].plot(dose.index, dose["delta_oas"], label="delta_OAS", color="#c0392b", lw=1.1)
+    axes[0].plot(dose.index, dose["delta_lw"], label=r"$\delta_{\mathrm{LW}}$", color=ml.plotting.RUN_COLORS["GMV"], lw=1.1)
+    axes[0].plot(dose.index, dose["delta_oas"], label=r"$\delta_{\mathrm{OAS}}$", color="#d4a017", lw=1.1)
     axes[0].axvline(split_ts, color="black", ls=":", lw=1)
-    axes[0].set_ylabel("shrinkage weight")
+    axes[0].set_ylabel("shrinkage intensity δ")
     axes[0].set_title("Shrinkage dose through time")
     axes[0].legend(fontsize=8)
 
-    axes[1].plot(dose.index, dose["cond_sample"], label="cond(Sigma_sample)", color="#555555", lw=1.1)
-    axes[1].plot(dose.index, dose["cond_lw"], label="cond(Sigma_LW)", color=ml.FAMILY_COLORS["Risk-based"], lw=1.1)
+    axes[1].plot(dose.index, dose["cond_sample"], label="cond(Σ_sample)", color="#555555", lw=1.1)
+    axes[1].plot(dose.index, dose["cond_lw"], label="cond(Σ_LW)", color=ml.plotting.RUN_COLORS["GMV"], lw=1.1)
     axes[1].set_yscale("log")
     axes[1].axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
     axes[1].set_ylabel("condition number (log)")
-    axes[1].set_title("Conditioning: sample vs Ledoit-Wolf")
+    axes[1].set_title("Conditioning: sample vs Ledoit–Wolf")
     axes[1].legend(fontsize=8)
 
     plt.tight_layout()
@@ -172,8 +172,8 @@ def cumulative_lw_figure(paired_series, split_ts):
         ax.plot(cum.index, cum.to_numpy() * 100, label=label, color=plot_colors[label], lw=1.3)
     ax.axhline(0, color="#cccccc", lw=0.8)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
-    ax.set_ylabel("cumulative LW - sample net-return diff (%, simple sum)")
-    ax.set_title("LW - sample: cumulative net-return difference")
+    ax.set_ylabel("cumulative LW − sample net-return diff (%, simple sum)")
+    ax.set_title("LW − sample: cumulative net-return difference")
     ax.legend(fontsize=8)
     plt.tight_layout()
     return fig
@@ -189,7 +189,7 @@ def halfl1_lw_figure(results, split_ts):
         halfL1_ts = 0.5 * (wlog_lw.loc[idx] - wlog_s.loc[idx]).abs().sum(axis=1)
         ax.plot(halfL1_ts.index, halfL1_ts.to_numpy() * 100, label=label, color=plot_colors[label], lw=1.1)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
-    ax.set_ylabel("half-L1(w_LW - w_S) (%)")
+    ax.set_ylabel("½‖w_LW − w_S‖₁ (%)")
     ax.set_title("Allocation distance: LW vs sample, through time")
     ax.legend(fontsize=8)
     plt.tight_layout()
@@ -230,7 +230,7 @@ def corr_heatmaps(Sigma_S, Sigma_LW):
         ax.grid(False)
     fig.colorbar(ims[0], ax=axes[:2].tolist(), shrink=0.8, label="correlation")
     fig.colorbar(ims[2], ax=axes[2], shrink=0.8, label="Δ correlation")
-    fig.suptitle("Correlation at 2022-12-31: sample vs Ledoit-Wolf")
+    fig.suptitle("Correlation at 2022-12-31: sample vs Ledoit–Wolf")
     return fig
 
 
@@ -245,14 +245,14 @@ def eigen_scree(S_emp, delta, m):
     fig, ax = plt.subplots(figsize=(9.5, 4.5))
     ax.plot(k, lam_S * ml.TRADING_DAYS, marker="o", lw=1.1, color="#555555",
             label=f"sample Σ (cond = {lam_S[0] / lam_S[-1]:.1f})")
-    ax.plot(k, lam_LW * ml.TRADING_DAYS, marker="s", lw=1.1, color=ml.FAMILY_COLORS["Risk-based"],
+    ax.plot(k, lam_LW * ml.TRADING_DAYS, marker="s", lw=1.1, color=ml.plotting.RUN_COLORS["GMV"],
             label=f"Σ_LW, δ={delta:.4f} (cond = {lam_LW[0] / lam_LW[-1]:.1f})")
     ax.axhline(m * ml.TRADING_DAYS, color="#cccccc", lw=0.8, ls="--", label="m (mean eigenvalue)")
     ax.set_yscale("log")
     ax.set_xticks(k)
     ax.set_xlabel("eigenvalue rank")
     ax.set_ylabel("eigenvalue (annualized, log)")
-    ax.set_title("Eigenvalue scree at 2022-12-31: sample vs Ledoit-Wolf")
+    ax.set_title("Eigenvalue scree at 2022-12-31: sample vs Ledoit–Wolf")
     ax.legend(fontsize=8)
     plt.tight_layout()
     return fig

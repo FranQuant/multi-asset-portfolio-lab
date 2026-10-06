@@ -1,7 +1,7 @@
 """Notebook-08-only run construction and table assembly.
 
 The statistics come from maplab.robust / maplab.inference; this module only
-builds the Phase 1 runs, the summary table, the excess-return frame and the
+builds the notebook 01-07 runs, the summary table, the excess-return frame and the
 drawdown dates that notebook 08 prints, asserts and plots.
 """
 import pandas as pd
@@ -86,7 +86,7 @@ def build_runs(simple_returns, panel) -> dict:
 
 
 def summary_table(results: dict, names, split_ts, rf_daily) -> pd.DataFrame:
-    """Phase 1 summary table (nb07 §6.1 windows and columns) for `names`."""
+    """Summary table (nb07 §6.1 windows and columns) for `names`."""
     rows = []
     for name in names:
         net = results[name]["net"]

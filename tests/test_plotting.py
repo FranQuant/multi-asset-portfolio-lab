@@ -78,7 +78,7 @@ def test_snapshot_map_one_label_per_method():
         assert isinstance(fig, Figure)
         _, labels = fig.axes[0].get_legend_handles_labels()
         for name in weights:
-            assert labels.count(name) == 1
+            assert labels.count(METHOD_STYLES.get(name, {}).get("label", name)) == 1
         assert labels.count("long-only frontier") == 1
         plt.close(fig)
 
@@ -242,3 +242,29 @@ def test_pair_matrix_text_white_at_vmax():
     assert colors["2.00"] == "white" and colors["-2.00"] == "white"
     assert colors["0.50"] == "black"
     plt.close(fig)
+
+
+def test_group_stackplot_labels_and_percent_axis():
+    from maplab.plotting import GROUP_LABELS
+    results, split_ts = make_results()
+    fig = group_stackplot(results, ["A(S)", "B(S)"], split_ts=split_ts)
+    for ax in fig.axes:
+        assert ax.get_ylabel() == "weight (%)"
+        assert ax.yaxis.get_major_formatter().format_pct(0.5, 1.0) == "50%"
+        assert " — " in ax.get_title() and "--" not in ax.get_title()
+    legend_labels = [t.get_text() for t in fig.legends[0].get_texts()]
+    assert "inflation-linked" in legend_labels and "real assets" in legend_labels
+    assert not any("_" in t for t in legend_labels)
+    assert GROUP_LABELS["inflation_linked"] == "inflation-linked"
+    plt.close(fig)
+
+
+def test_run_colors_highlight_reserved_for_uup():
+    from maplab.plotting import FAMILY_COLORS, HIGHLIGHT, METHOD_COLORS, RUN_COLORS, run_color
+    assert HIGHLIGHT not in RUN_COLORS.values()
+    assert HIGHLIGHT not in FAMILY_COLORS.values()
+    assert all(METHOD_COLORS[k] == v for k, v in RUN_COLORS.items())
+    assert run_color("BL(0.1,S)") == run_color("BL(0.2)") == RUN_COLORS["BL"]
+    assert run_color("EqualWeight") == RUN_COLORS["EW"]
+    with pytest.raises(KeyError):
+        run_color("Nope(S)")

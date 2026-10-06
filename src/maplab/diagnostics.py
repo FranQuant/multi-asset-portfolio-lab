@@ -1,8 +1,8 @@
 """Portfolio diagnostics shared by the notebooks.
 
-Lifted verbatim from the notebook-local helpers of notebook 07 (§1 helper
-cell, §3.2, Figure F1, Figure F3) so every notebook computes effN, DR,
-n_uncorr, ... with the same formulas and the same operation order.
+Lifted verbatim from the notebook-local helpers of notebook 07 so every
+notebook computes effN, DR, n_uncorr, ... with the same formulas and the same
+operation order.
 """
 from __future__ import annotations
 

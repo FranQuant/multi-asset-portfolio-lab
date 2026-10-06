@@ -6,6 +6,7 @@ shows them.
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 import scipy.cluster.hierarchy as sch
 from scipy.cluster.hierarchy import dendrogram, is_valid_linkage, is_monotonic, cophenet
 from scipy.spatial.distance import pdist
@@ -75,7 +76,7 @@ def snapshot(panel, dates):
 
         Z = info["Z"]
         # Rebuild D/y explicitly (the registered recipe: half-formula, distance of distances)
-        # to compute the cophenetic correlation and to quasi-diagonalize the heatmap in F2.
+        # to compute the cophenetic correlation and to quasi-diagonalize the heatmap in the snapshot figure.
         C_half = np.clip(0.5 * (C + C.T), -1.0, 1.0)
         np.fill_diagonal(C_half, 1.0)
         D = np.sqrt(0.5 * (1.0 - C_half))
@@ -153,7 +154,7 @@ def pos_path(Sigma_np, order, i):
 
 
 def mechanism_grid(snap, dates):
-    """Figure F2: dendrogram / quasi-diagonalized correlation / UUP weight
+    """Dendrogram / quasi-diagonalized correlation / UUP weight
     bars, one row per snapshot date. Each row's dendrogram nodes are annotated
     with that date's own tree splits. Returns (fig, [(asof, annotated, n_links)])."""
     fig, axes = plt.subplots(3, 3, figsize=(17, 13))
@@ -176,7 +177,7 @@ def mechanism_grid(snap, dates):
         ax.set_xticklabels(new_labels, rotation=90, fontsize=6)
         for lbl in ax.get_xticklabels():
             if lbl.get_text().startswith("UUP"):
-                lbl.set_color("#c0392b"); lbl.set_fontweight("bold")
+                lbl.set_color(ml.plotting.HIGHLIGHT); lbl.set_fontweight("bold")
         root_node, nodelist = sch.to_tree(Z, rd=True)
         root_L = root_node.get_left().pre_order()
         root_R = root_node.get_right().pre_order()
@@ -235,8 +236,8 @@ def mechanism_grid(snap, dates):
         ax.axvline(pos_uup - 0.5, color="black", lw=0.6)
         ax.axvline(pos_uup + 0.5, color="black", lw=0.6)
         boundary = len(root_L) - 0.5
-        ax.axhline(boundary, color="#c0392b", lw=1.2, ls="--")
-        ax.axvline(boundary, color="#c0392b", lw=1.2, ls="--")
+        ax.axhline(boundary, color="black", lw=1.2, ls="--")
+        ax.axvline(boundary, color="black", lw=1.2, ls="--")
         ax.set_xticks(range(s["n"])); ax.set_xticklabels(ordered_labels, rotation=90, fontsize=5)
         ax.set_yticks(range(s["n"])); ax.set_yticklabels(ordered_labels, fontsize=5)
         ax.set_title(f"{asof.date()} correlation (leaf order)", fontsize=8)
@@ -249,9 +250,10 @@ def mechanism_grid(snap, dates):
         for m in cf_methods:
             xi = uup_methods.index(m)
             cf_val = s["w_hrp_cf"][iU] if m == "HRP" else s["comps_cf"][m][iU]
-            ax.bar(xi, cf_val, facecolor="none", edgecolor="#c0392b", lw=1.5, hatch="//")
+            ax.bar(xi, cf_val, facecolor="none", edgecolor="#555555", lw=1.5, hatch="//")
         ax.set_xticks(x); ax.set_xticklabels(uup_methods, rotation=45, fontsize=7, ha="right")
-        ax.set_title(f"{asof.date()} UUP weight (hollow = Sigma_cf)", fontsize=8)
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+        ax.set_title(f"{asof.date()} UUP weight (hollow = $\\Sigma_{{\\mathrm{{cf}}}}$)", fontsize=8)
 
     fig.tight_layout()
     return fig, annotated_counts
@@ -440,15 +442,15 @@ def forecast_bias_table(panel, rdates, results, simple_returns, h7_methods):
 
 
 def forecast_bias_figure(q_pivot, split_ts):
-    """Figure F6: q_HRP and q_GMV per holding segment."""
+    """q_HRP and q_GMV per holding segment."""
     fig, ax = plt.subplots(figsize=(9.5, 5))
     q_hrp = q_pivot["HRP(S)"].dropna()
     q_gmv = q_pivot["GMV(S)"].dropna()
-    ax.plot(q_hrp.index, q_hrp.to_numpy(), label="q_HRP", color="#8e44ad", lw=1.1)
-    ax.plot(q_gmv.index, q_gmv.to_numpy(), label="q_GMV", color="#555555", lw=1.1)
+    ax.plot(q_hrp.index, q_hrp.to_numpy(), label=r"$q_{\mathrm{HRP}}$", color=ml.plotting.run_color("HRP(S)"), lw=1.1)
+    ax.plot(q_gmv.index, q_gmv.to_numpy(), label=r"$q_{\mathrm{GMV}}$", color=ml.plotting.run_color("GMV(S)"), lw=1.1)
     ax.axhline(0, color="black", lw=0.6)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
-    ax.set_ylabel("q = log(realized vol / ex-ante vol)")
+    ax.set_ylabel("q = ln(σ̂_realized / σ̂_ex-ante)")
     ax.set_xlabel("rebalance date")
     ax.set_title("Forecast bias per holding segment: HRP vs GMV")
     ax.legend(fontsize=8)
@@ -457,7 +459,7 @@ def forecast_bias_figure(q_pivot, split_ts):
 
 
 def root_split_table(sigma_cache, h2_table, results, rdates):
-    """F7 table: sigma_UUP, sqrt(V_rest), rho_bar_rest, the root-singleton
+    """Root-split table: sigma_UUP, sqrt(V_rest), rho_bar_rest, the root-singleton
     identity and w_UUP (HRP/GMV/ERC) per rebalance."""
     f7_rows = []
     for asof in rdates:
@@ -493,7 +495,7 @@ def root_split_table(sigma_cache, h2_table, results, rdates):
 
 
 def root_split_figure(f7_table, split_ts):
-    """Figure F7(a-c), non-root-singleton rebalances shaded."""
+    """Root-split panels (a-c), non-root-singleton rebalances shaded."""
     dates_idx = f7_table.index
     non_singleton_dates = dates_idx[~f7_table["root_singleton"].to_numpy()]
     diffs = dates_idx.to_series().diff().dropna()
@@ -507,23 +509,25 @@ def root_split_figure(f7_table, split_ts):
 
     ax = axes[0]
     shade_non_singleton(ax)
-    ax.plot(f7_table.index, f7_table["sigma_UUP"], label="sigma_UUP", color="#c0392b", lw=1.1)
-    ax.plot(f7_table.index, f7_table["sqrt_V_rest"], label="sqrt(V_rest)", color="#555555", lw=1.1)
+    ax.plot(f7_table.index, f7_table["sigma_UUP"], label=r"$\sigma_{\mathrm{UUP}}$", color=ml.plotting.HIGHLIGHT, lw=1.1)
+    ax.plot(f7_table.index, f7_table["sqrt_V_rest"], label=r"$\sqrt{V_{\mathrm{rest}}}$", color="#555555", lw=1.1)
     ax.axvline(split_ts, color="black", ls=":", lw=1, label="train/test split")
-    ax.set_ylabel("annualized vol")
+    ax.set_ylabel("annualized volatility (%)")
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax.set_title("(a) σ_UUP and √V_rest", fontsize=9)
     ax.legend(fontsize=8)
 
     ax = axes[1]
     shade_non_singleton(ax)
-    ax.plot(f7_table.index, f7_table["w_UUP_HRP"], label="w_UUP HRP(S)", color="#8e44ad", lw=1.3)
+    ax.plot(f7_table.index, f7_table["w_UUP_HRP"], label=r"$w_{\mathrm{UUP}}$ HRP(S)", color=ml.plotting.run_color("HRP(S)"), lw=1.3)
     ax.plot(f7_table.index, f7_table["identity"], label=r"identity $V_{\mathrm{rest}}/(\sigma^2_{\mathrm{UUP}} + V_{\mathrm{rest}})$",
-            color="#8e44ad", lw=1.0, ls="--")
-    ax.plot(f7_table.index, f7_table["w_UUP_GMV"], label="w_UUP GMV(S)",
-            color=ml.FAMILY_COLORS["Risk-based"], lw=0.7)
-    ax.plot(f7_table.index, f7_table["w_UUP_ERC"], label="w_UUP ERC(S)", color="#d4a017", lw=0.7)
+            color=ml.plotting.run_color("HRP(S)"), lw=1.0, ls="--")
+    ax.plot(f7_table.index, f7_table["w_UUP_GMV"], label=r"$w_{\mathrm{UUP}}$ GMV(S)",
+            color=ml.plotting.run_color("GMV(S)"), lw=0.7)
+    ax.plot(f7_table.index, f7_table["w_UUP_ERC"], label=r"$w_{\mathrm{UUP}}$ ERC(S)", color=ml.plotting.run_color("ERC(S)"), lw=0.7)
     ax.axvline(split_ts, color="black", ls=":", lw=1)
-    ax.set_ylabel("w_UUP")
+    ax.set_ylabel("UUP weight (%)")
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax.set_title("(b) HRP's UUP weight and the root-singleton identity", fontsize=9)
     ax.legend(fontsize=7, ncol=2)
 

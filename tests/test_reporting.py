@@ -62,3 +62,57 @@ def test_input_not_mutated():
 def test_unknown_column_raises():
     with pytest.raises(KeyError):
         show_table(_df(), pct=["nope"])
+
+
+def test_returns_numeric_frame():
+    out = show_table(_df(), pct=["w"], int_cols=["n"])
+    assert pd.api.types.is_float_dtype(out["w"]) and pd.api.types.is_integer_dtype(out["n"])
+
+
+def test_fixed_decimals_in_display():
+    df = pd.DataFrame({"p": [1.0, 1.0], "se": [0.1, 0.25]})
+    shown = show_table(df, dp=2, col_dp={"p": 3}).formatted()
+    assert shown["p"].tolist() == ["1.000", "1.000"]
+    assert shown["se"].tolist() == ["0.10", "0.25"]
+    assert show_table(df, dp=2, col_dp={"p": 3})["p"].tolist() == [1.0, 1.0]
+    with pytest.raises(KeyError):
+        show_table(df, col_dp={"nope": 3})
+
+
+def test_negative_zero_and_unicode_minus():
+    df = pd.DataFrame({"x": [-0.001, -1.234, 0.001, np.nan]})
+    shown = show_table(df, dp=2).formatted()
+    assert shown["x"].tolist() == ["0.00", "−1.23", "0.00", "–"]
+    assert "-" not in "".join(shown["x"])
+    html = show_table(df, dp=2)._repr_html_()
+    assert "−1.23" in html and "-0.00" not in html
+
+
+def test_sign_cols():
+    df = pd.DataFrame({"s": [1, -1, 1], "v": [0.5, 0.25, 0.75]})
+    out = show_table(df, sign_cols=["s"])
+    assert out.formatted()["s"].tolist() == ["+", "−", "+"]
+    assert out["s"].tolist() == [1, -1, 1]
+
+
+def test_label_replacement_display_only():
+    df = pd.DataFrame({"a <= b": [1.0]}, index=["ERC(LW) - ERC(S)"])
+    out = show_table(df)
+    assert out.index[0] == "ERC(LW) - ERC(S)"
+    f = out.formatted()
+    assert f.index[0] == "ERC(LW) − ERC(S)" and f.columns[0] == "a ≤ b"
+    f2 = show_table(pd.DataFrame({"a >= b": [1.0]})).formatted()
+    assert f2.columns[0] == "a ≥ b"
+
+
+def test_concat_keeps_each_columns_decimals():
+    a = show_table(pd.DataFrame({"p": [1.0, 1.0], "z": [-0.001, 0.5]}), dp=2, col_dp={"p": 3})
+    b = show_table(pd.DataFrame({"t": [-0.2, 1.0]}), dp=1)
+    both = pd.concat([a, b], axis=1)
+    assert isinstance(both, type(a))
+    f = both.formatted()
+    assert f["p"].tolist() == ["1.000", "1.000"]
+    assert f["z"].tolist() == ["0.00", "0.50"]
+    assert f["t"].tolist() == ["−0.2", "1.0"]
+    html = both._repr_html_()
+    assert "−0.2" in html and "-0.00" not in html and "-0.2" not in html

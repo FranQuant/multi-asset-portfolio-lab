@@ -6,6 +6,8 @@ asserts and shows them.
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.patches import Patch
+from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
 from maplab import GMV, MaxSharpe
@@ -29,7 +31,7 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
 
     fig, ax = plt.subplots(figsize=(8, 6))
 
-    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.08, color="#cccccc", zorder=0,
+    ax.scatter(mc_vol, mc_ret, s=2, alpha=0.12, color="#bbbbbb", zorder=0,
                label=f"random long-only portfolios (Dirichlet α={mc_alpha})")
 
     asset_vol = np.sqrt(np.diag(Sigma_np))
@@ -54,7 +56,7 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     ew_ret = float(ew_w @ mu_np)
     ew_vol = float(np.sqrt(ew_w @ Sigma_np @ ew_w))
     ax.scatter([ew_vol], [ew_ret], marker="D", s=130, edgecolors="black", linewidths=1.0,
-               color=ml.FAMILY_COLORS["Benchmark"], zorder=4, label="EW")
+               color=ml.plotting.RUN_COLORS["EW"], zorder=4, label="EW")
 
     w_6040 = pd.Series(0.0, index=Sigma.columns)
     w_6040[["SPY", "IEF"]] = [0.6, 0.4]
@@ -62,20 +64,22 @@ def frontier_figure(Sigma, mu, w_gmv, w_msr, mc_alpha, rf_ann, split_rebal):
     ret_6040 = float(w_6040 @ mu_np)
     vol_6040 = float(np.sqrt(w_6040 @ Sigma_np @ w_6040))
     ax.scatter([vol_6040], [ret_6040], marker="D", s=130, edgecolors="black", linewidths=1.0,
-               color=ml.plotting.METHOD_COLORS["60/40"], zorder=4, label="60/40")
+               color=ml.plotting.RUN_COLORS["60/40"], zorder=4, label="60/40")
 
     ax.scatter([gmv_vol], [gmv_ret], marker="*", s=380, edgecolors="black", linewidths=1.0,
-               color=ml.FAMILY_COLORS[GMV.family], zorder=4, label="GMV")
+               color=ml.plotting.RUN_COLORS["GMV"], zorder=4, label="GMV")
     ax.scatter([msr_vol], [msr_ret], marker="*", s=380, edgecolors="black", linewidths=1.0,
-               color=ml.FAMILY_COLORS[MaxSharpe.family], zorder=4, label="MaxSharpe")
+               color=ml.plotting.RUN_COLORS["MaxSharpe"], zorder=4, label="MaxSharpe")
 
     cml_x = np.linspace(0, max(asset_vol.max(), msr_vol, mc_vol.max()) * 1.05, 20)
     cml_slope = (msr_ret - rf_ann) / msr_vol
     ax.plot(cml_x, rf_ann + cml_slope * cml_x, color="#1f4e79", ls="--", lw=1.5,
             zorder=1, label=f"CML (rf={rf_ann:.2%} → MaxSharpe)")
 
-    ax.set_xlabel("annualized volatility")
-    ax.set_ylabel("annualized arithmetic expected return (μ)")
+    ax.set_xlabel("annualized volatility (%)")
+    ax.set_ylabel("annualized expected return μ (%)")
+    ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax.set_title(f"Long-only efficient frontier — snapshot {split_rebal.date()}")
     ax.legend(loc="upper left", fontsize=8)
     plt.tight_layout()
@@ -92,7 +96,7 @@ def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
     pairs = {"GMV": (w_gmv_unc, w_gmv_lo.reindex(tickers)),
              "MaxSharpe": (w_tan_unc, w_msr_lo.reindex(tickers))}
 
-    method_colors = {"GMV": ml.FAMILY_COLORS[GMV.family], "MaxSharpe": ml.FAMILY_COLORS[MaxSharpe.family]}
+    method_colors = {"GMV": ml.plotting.RUN_COLORS["GMV"], "MaxSharpe": ml.plotting.RUN_COLORS["MaxSharpe"]}
     x = np.arange(len(tickers))
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
     for ax, (name, (w_unc, w_lo)) in zip(axes, pairs.items()):
@@ -101,11 +105,14 @@ def unconstrained_vs_long_only(Sigma, mu, rf_ann, w_gmv_lo, w_msr_lo):
         ax.axhline(0, color="black", lw=0.8)
         ax.set_xticks(x)
         ax.set_xticklabels(tickers, rotation=90, fontsize=7)
-        ax.set_title("GMV" if name == "GMV" else "MSR (unconstrained = tangency)")
-        ax.set_ylabel("weight")
-    axes[0].legend(fontsize=8)
+        ax.set_title("GMV" if name == "GMV" else "MaxSharpe (unconstrained = tangency)")
+        ax.set_ylabel("weight (%)")
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))
+    fig.legend(handles=[Patch(color="#cccccc", label="unconstrained (closed form)"),
+                        Patch(color="#555555", label="long-only (class)")],
+               loc="lower center", ncol=2, fontsize=8, frameon=False)
     fig.suptitle("Unconstrained vs long-only weights, 2022-12-31 (own y-axis per panel)")
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
 
     cols = {"GMV unconstrained": w_gmv_unc, "GMV long-only": pairs["GMV"][1],
             "MSR unconstrained": w_tan_unc, "MSR long-only": pairs["MaxSharpe"][1]}

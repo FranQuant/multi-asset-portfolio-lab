@@ -1,14 +1,15 @@
 """Notebook-09-only run construction, descriptive tables and figures.
 
-The statistics come from maplab.robust / maplab.inference; the Phase 1 run
+The statistics come from maplab.robust / maplab.inference; the notebook 01-07 run
 construction, summary table and excess-return windows are notebook 08's
 (_nb08_helpers). This module builds the lookback grid, the H3 descriptive
-table, figures F6–F9 and the variance-ratio profile that notebook 09 prints,
+table, the figures and the variance-ratio profile that notebook 09 prints,
 asserts and plots.
 """
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import PercentFormatter
 
 import maplab as ml
 from maplab import GMV, MostDiversified, EqualRiskContribution, HierarchicalRiskParity, backtest
@@ -96,7 +97,7 @@ def h3_desc_table(grid: dict, summary_tbl: pd.DataFrame, at_date) -> pd.DataFram
 
 
 def lookback_panels(desc: pd.DataFrame, sharpe_full: pd.Series, figsize=(13, 4)):
-    """Figure F6: full-window Sharpe, annual turnover and median effN by lookback,
+    """Full-window Sharpe, annual turnover and median effN by lookback,
     one line per method. `sharpe_full` is indexed by grid label."""
     fig, axes = plt.subplots(1, 3, figsize=figsize)
     panels = [("Sharpe (full, vs BIL)", None), ("annual turnover", "ann_turnover"), ("median effN", "median_effN")]
@@ -106,7 +107,7 @@ def lookback_panels(desc: pd.DataFrame, sharpe_full: pd.Series, figsize=(13, 4))
                 y = [float(sharpe_full[grid_label(m, L)]) for L in LOOKBACKS]
             else:
                 y = [float(desc.loc[(m, L), col]) for L in LOOKBACKS]
-            ax.plot(LOOKBACKS, y, marker="o", lw=1.3, color=ml.plotting.METHOD_COLORS.get(m), label=P1_LABEL[m])
+            ax.plot(LOOKBACKS, y, marker="o", lw=1.3, color=ml.plotting.run_color(m), label=P1_LABEL[m])
         ax.set_xticks(LOOKBACKS)
         ax.set_xlabel("lookback (days)")
         ax.set_title(title, fontsize=10)
@@ -116,20 +117,21 @@ def lookback_panels(desc: pd.DataFrame, sharpe_full: pd.Series, figsize=(13, 4))
 
 
 def uup_paths(grid: dict, split_ts, figsize=(12, 7.5)):
-    """Figure F7: UUP target weight at each rebalance for the three lookbacks,
+    """UUP target weight at each rebalance for the three lookbacks,
     one panel per method, shared y, train/test split marked."""
     fig, axes = plt.subplots(2, 2, figsize=figsize, sharex=True, sharey=True)
     styles = {252: dict(lw=1.3, ls="-"), 504: dict(lw=1.1, ls="--"), 756: dict(lw=1.1, ls=":")}
     for ax, m in zip(axes.ravel(), GRID_METHODS):
-        color = ml.plotting.METHOD_COLORS.get(m)
+        color = ml.plotting.run_color(m)
         for L in LOOKBACKS:
             w = grid[grid_label(m, L)]["wlog"]["UUP"]
             ax.plot(w.index, w.to_numpy(), color=color, label=f"{L}d", **styles[L])
         ax.axvline(split_ts, color="black", ls=":", lw=1)
         ax.set_title(P1_LABEL[m], fontsize=10)
-        ax.legend(fontsize=8)
+    axes.ravel()[0].legend(fontsize=8)
     for ax in axes[:, 0]:
-        ax.set_ylabel("UUP target weight")
+        ax.set_ylabel("UUP target weight (%)")
+        ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     for ax in axes[1, :]:
         ax.set_xlabel("rebalance date")
     fig.tight_layout()
@@ -137,14 +139,14 @@ def uup_paths(grid: dict, split_ts, figsize=(12, 7.5)):
 
 
 def bias_decomposition_bars(decomp_full: pd.DataFrame, figsize=(10, 4.5)):
-    """Figure F8b: per method, grouped bars of q̄, ½·log v̄ and −J (full window).
+    """Per method, grouped bars of q̄, ½·log v̄ and −J (full window).
     `decomp_full` is indexed by method with columns q_bar, half_log_vbar, J."""
     fig, ax = plt.subplots(figsize=figsize)
     x = np.arange(len(decomp_full))
     width = 0.27
-    bars = [("q_bar", decomp_full["q_bar"], "#2c3e50"),
-            ("½·log v̄", decomp_full["half_log_vbar"], "#1f77b4"),
-            ("−J", -decomp_full["J"], "#c0392b")]
+    bars = [("q̄", decomp_full["q_bar"], "#2c3e50"),
+            ("½·log v̄", decomp_full["half_log_vbar"], "#4292c6"),
+            ("−J", -decomp_full["J"], "#555555")]
     for k, (lab, vals, color) in enumerate(bars):
         ax.bar(x + (k - 1) * width, vals.to_numpy(), width, label=lab, color=color)
     ax.axhline(0, color="black", lw=0.6)
@@ -157,24 +159,19 @@ def bias_decomposition_bars(decomp_full: pd.DataFrame, figsize=(10, 4.5)):
 
 
 def train_test_arrows(summary_tbl: pd.DataFrame, names, figsize=(8.5, 6), tol=(0.12, 0.04)):
-    """Figure F9: one arrow per run from its train (ann_vol, ann_return) point
+    """One arrow per run from its train (ann_vol, ann_return) point
     (hollow) to its test point (filled), labelled at the test end. Colours from
-    METHOD_COLORS by base name; a missing or already-used colour falls back to
-    the next unused colour of the matplotlib cycle. A label whose test point is
+    ml.plotting.run_color (a run without a colour raises KeyError). A label whose test point is
     within `tol` (share of the x and y data ranges) of a test point already
     labelled in the same slot moves one slot (11 points) down."""
     fig, ax = plt.subplots(figsize=figsize)
-    cycle = [c for c in plt.rcParams["axes.prop_cycle"].by_key()["color"]]
-    used, pts = set(), []
+    pts = []
     for name in names:
         tr = summary_tbl.loc[(name, "train (<= split)")]
         te = summary_tbl.loc[(name, "test (> split)")]
         train = (float(tr["ann_vol"]), float(tr["ann_return"]))
         test = (float(te["ann_vol"]), float(te["ann_return"]))
-        c = ml.plotting._color_for(name)
-        if c is None or c in used:
-            c = next(cc for cc in cycle if cc not in used)
-        used.add(c)
+        c = ml.plotting.run_color(name)
         pts.append((name, train, test, c))
     xs = [p[k][0] for p in pts for k in (1, 2)]
     ys = [p[k][1] for p in pts for k in (1, 2)]
@@ -194,8 +191,10 @@ def train_test_arrows(summary_tbl: pd.DataFrame, names, figsize=(8.5, 6), tol=(0
         lo, hi = min(vals), max(vals)
         pad = 0.08 * (hi - lo)
         setter(lo - pad, hi + pad)
-    ax.set_xlabel("annualized vol")
-    ax.set_ylabel("annualized return")
+    ax.set_xlabel("annualized volatility (%)")
+    ax.set_ylabel("annualized return (%)")
+    ax.xaxis.set_major_formatter(PercentFormatter(1.0))
+    ax.yaxis.set_major_formatter(PercentFormatter(1.0))
     ax.set_title("Train (hollow) → test (filled), core runs")
     fig.tight_layout()
     return fig
