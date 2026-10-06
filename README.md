@@ -6,7 +6,7 @@
 
 # Applied Portfolio Construction Research
 
-### Classical and modern approaches to multi-asset allocation, tested out of sample
+### Classical and modern approaches to multi-asset allocation
 
 **Does portfolio optimization add value over naive diversification in a multi-asset
 portfolio?** We study seven allocation models that span return-based and risk-based
