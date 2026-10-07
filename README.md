@@ -147,6 +147,10 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
     pytest
     cd notebooks && for nb in [01][0-9]_*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
 
+Exact reference environment (Python 3.12) instead of the second line:
+
+    pip install -r requirements-lock.txt && pip install -e . --no-deps
+
 Uses the price panel shipped in data/cache/prices.parquet (see Data). Python 3.11 or later
 (developed on 3.12).
 
