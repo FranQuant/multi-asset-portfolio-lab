@@ -135,12 +135,15 @@ def drawdown_dates(results: dict, names) -> pd.DataFrame:
     rows = []
     for name in names:
         wealth = (1.0 + results[name]["net"]).cumprod()
-        dd = wealth / wealth.cummax() - 1.0
+        dd = wealth / wealth.cummax().clip(lower=1.0) - 1.0   # wealth starts at 1.0
         trough = dd.idxmin()
         peak = wealth.loc[:trough].idxmax()
+        peak_w = max(1.0, float(wealth.loc[peak]))
         after = wealth.loc[trough:]
-        rec = after.index[after >= wealth.loc[peak]]
-        rows.append({"strategy": name, "max_dd": float(dd.min()), "peak": peak.date(),
+        rec = after.index[after >= peak_w]
+        # peak is NaT when the high-water mark is the initial capital itself
+        rows.append({"strategy": name, "max_dd": float(dd.min()),
+                     "peak": peak.date() if wealth.loc[peak] >= 1.0 else pd.NaT,
                      "trough": trough.date(), "recovery": rec[0].date() if len(rec) else pd.NaT})
     return pd.DataFrame(rows).set_index("strategy")
 

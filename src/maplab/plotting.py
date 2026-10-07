@@ -413,7 +413,7 @@ def wealth_drawdown(net: dict, rf, split_ts, styles=None, figsize=(11, 11), titl
     for label, r in net.items():
         wealth = (1.0 + r).cumprod()
         ymin, ymax = min(ymin, float(wealth.min())), max(ymax, float(wealth.max()))
-        dds[label] = 100 * (wealth / wealth.cummax() - 1.0)
+        dds[label] = 100 * (wealth / wealth.cummax().clip(lower=1.0) - 1.0)
         ax_w.plot(wealth.index, wealth.to_numpy(), lw=1.1, label=label, **_line_style(label, styles))
         start = r.index.min() if start is None else min(start, r.index.min())
         end = r.index.max() if end is None else max(end, r.index.max())

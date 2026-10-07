@@ -46,7 +46,7 @@ def ann_sharpe(r: pd.Series, rf: float | pd.Series | pd.DataFrame) -> float:
 
 def max_drawdown(r: pd.Series) -> float:
     wealth = (1.0 + r).cumprod()
-    peak = wealth.cummax()
+    peak = wealth.cummax().clip(lower=1.0)  # wealth starts at 1.0 before the first return
     return float((wealth / peak - 1.0).min())
 
 

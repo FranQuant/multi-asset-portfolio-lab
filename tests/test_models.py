@@ -1095,3 +1095,94 @@ def test_fixed_weight_backtest_trades_drift_back():
     assert (turnover.iloc[1:] > 0).all()
     for _, row in wlog.iterrows():
         assert np.allclose(row.to_numpy(), fw.weights.reindex(wlog.columns).to_numpy(), rtol=0, atol=1e-12)
+
+
+# ── p. backtest oracle: turnover, booked cost and net return by hand ─────────
+
+def test_backtest_turnover_cost_net_oracle():
+    """Two assets, three month-end rebalances, hand-computed drift/turnover/cost/net.
+
+    Targets: (.5,.5) from cash on Jan 31, (.8,.2) on the Feb 29 label (a
+    Saturday, so it trades Mon Mar 2), (.5,.5) on Mar 31. One-way turnover =
+    0.5·L1, the initial build from cash included (0.5 for a fully invested
+    target — the documented convention); cost = 10 bp × turnover, booked on the
+    first trading day of the segment.
+    """
+    idx = pd.bdate_range("2020-01-30", "2020-03-31")
+    rets = pd.DataFrame(0.0, index=idx, columns=["A", "B"])
+    rets.loc["2020-01-31"] = [0.10, -0.05]
+    rets.loc["2020-02-03"] = [0.05, 0.02]
+    rets.loc["2020-03-02"] = [-0.04, 0.01]
+    rets.loc["2020-03-31"] = [0.02, 0.04]
+    targets = iter([(0.5, 0.5), (0.8, 0.2), (0.5, 0.5)])
+    weight_fn = lambda panel, asof: pd.Series(next(targets), index=["A", "B"])  # noqa: E731
+
+    net, wlog, diag = ml.backtest(weight_fn, rets, Panel({"returns": np.log1p(rets)}),
+                                  cost_bps=10.0, start="2020-01-31")
+    assert list(wlog.index) == list(pd.to_datetime(["2020-01-31", "2020-02-29", "2020-03-31"]))
+
+    # pre-trade drifted weights (hand arithmetic)
+    #   Jan 31: (.5·1.10, .5·.95) = (.55, .475) → (22/41, 19/41)
+    #   Feb 3 : (22·1.05, 19·1.02)/41 = (23.1, 19.38)/41 → (23.1, 19.38)/42.48
+    #   Mar 2 : (.8·.96, .2·1.01) = (.768, .202) → /0.970
+    pre2 = np.array([23.1, 19.38]) / 42.48
+    pre3 = np.array([0.768, 0.202]) / 0.970
+    t1 = 0.5 * (0.5 + 0.5)                                   # from cash
+    t2 = 0.5 * (abs(0.8 - pre2[0]) + abs(0.2 - pre2[1]))     # = 0.8 − 23.1/42.48
+    t3 = 0.5 * (abs(0.5 - pre3[0]) + abs(0.5 - pre3[1]))     # = pre3[0] − 0.5
+    assert np.isclose(t2, 0.8 - 23.1 / 42.48, rtol=0, atol=1e-15)
+    assert np.isclose(t2, 0.2562146893, rtol=0, atol=1e-10)
+    assert np.isclose(t3, 0.2917525773, rtol=0, atol=1e-10)
+
+    tlog = diag["turnover_per_rebalance"]
+    assert t1 == 0.5
+    assert np.allclose(tlog.to_numpy(), [t1, t2, t3], rtol=0, atol=1e-12)
+
+    # booked cost: 10 bp × turnover, on the first trading day of each segment only
+    cost = pd.Series(0.0, index=idx)
+    cost.loc["2020-01-31"], cost.loc["2020-03-02"], cost.loc["2020-03-31"] = (
+        t1 * 1e-3, t2 * 1e-3, t3 * 1e-3)
+    assert np.isclose(diag["total_cost"], 5e-4 + t2 * 1e-3 + t3 * 1e-3, rtol=0, atol=1e-15)
+
+    # net returns: gross (current drifted weights · day return) − cost
+    expect = pd.Series(0.0, index=idx) - cost
+    expect.loc["2020-01-31"] += 0.5 * 0.10 + 0.5 * -0.05         # 0.025
+    expect.loc["2020-02-03"] += 1.48 / 41                         # (22·.05 + 19·.02)/41
+    expect.loc["2020-03-02"] += 0.8 * -0.04 + 0.2 * 0.01          # −0.030
+    expect.loc["2020-03-31"] += 0.5 * 0.02 + 0.5 * 0.04           # 0.030
+    expect = expect.loc["2020-01-31":]
+    assert net.index.equals(expect.index)
+    assert np.allclose(net.to_numpy(), expect.to_numpy(), rtol=0, atol=1e-14)
+    assert np.isclose(net.loc["2020-01-31"], 0.0245, rtol=0, atol=1e-14)   # 0.025 − 5 bp build cost
+
+
+# ── q. max drawdown starts wealth at 1.0 ─────────────────────────────────────
+
+def test_max_drawdown_measured_from_initial_capital():
+    r = pd.Series([-0.10, -0.05, 0.20], index=pd.bdate_range("2020-01-01", periods=3))
+    # wealth 1 → .90 → .855 → 1.026: the trough is 14.5 % below the initial 1.0
+    assert np.isclose(ml.max_drawdown(r), -0.145, rtol=0, atol=1e-12)
+    # unchanged when the series starts with a gain
+    r2 = pd.Series([0.10, -0.20, 0.05], index=r.index)
+    assert np.isclose(ml.max_drawdown(r2), 0.88 / 1.10 - 1.0, rtol=0, atol=1e-12)
+
+
+def test_nb08_drawdown_dates_start_wealth_at_one():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "notebooks"))
+    try:
+        from helpers import nb08 as h
+    finally:
+        sys.path.remove(str(Path(__file__).resolve().parents[1] / "notebooks"))
+    idx = pd.bdate_range("2020-01-01", periods=5)
+    # initial-capital high-water mark: peak is the (undated) start, recovery needs wealth ≥ 1.0
+    r = pd.Series([-0.10, -0.05, 0.05, 0.10, 0.0], index=idx)
+    out = h.drawdown_dates({"x": {"net": r}}, ["x"]).loc["x"]
+    assert np.isclose(out["max_dd"], -0.145, rtol=0, atol=1e-12) and out["max_dd"] == ml.max_drawdown(r)
+    assert pd.isna(out["peak"]) and out["trough"] == idx[1].date()
+    # wealth: .9, .855, .89775, .987525, .987525 → never back to 1.0
+    assert pd.isna(out["recovery"])
+    r.iloc[-1] = 0.02                                            # 1.0073 on the last day
+    out = h.drawdown_dates({"x": {"net": r}}, ["x"]).loc["x"]
+    assert out["recovery"] == idx[-1].date()
