@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Notebooks](https://img.shields.io/badge/notebooks-12-F37626?logo=jupyter&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
-![Pre-registered](https://img.shields.io/badge/hypotheses-nb08--10_pre--registered-555555)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FranQuant/multi-asset-portfolio-lab/blob/main/notebooks/00_data_contract.ipynb)
 ![License](https://img.shields.io/badge/license-MIT-2e7d32)
 
 ### From mean-variance to risk parity and hierarchical allocation
@@ -131,6 +131,8 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
   consistency check, not evidence.
 - **Beating EW** is far harder: a true gap of 0.2 in Sharpe would be detected only 12–51%
   of the time in 17 years.
+## Limits
+
 - **Scope.** One universe, one sample, flat costs, monthly rebalancing, long-only. The
   results describe these methods on this data, not portfolio construction in general.
 - **Initial trade.** The first rebalance from cash is charged on half the L1 change (5 bp,
