@@ -131,6 +131,7 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
   consistency check, not evidence.
 - **Beating EW** is far harder: a true gap of 0.2 in Sharpe would be detected only 12–51%
   of the time in 17 years.
+
 ## Limits
 
 - **Scope.** One universe, one sample, flat costs, monthly rebalancing, long-only. The
