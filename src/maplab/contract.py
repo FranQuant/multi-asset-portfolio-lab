@@ -38,7 +38,8 @@ PANEL_TICKERS: list[str] = UNIVERSE + [RF_TICKER] + FACTOR_TICKERS
 # ── Time & rebalancing conventions ──────────────────────────────────────────
 START = "2008-01-01"
 END   = "2026-04-30"
-TRAIN_TEST_SPLIT = "2022-12-31"   # single split; 2023+ is the held-out window
+TRAIN_TEST_SPLIT = "2022-12-31"   # single split; 2023+ is the test window (a reporting split,
+                                  # not a sealed holdout: universe and BL k saw the full sample)
 
 TRADING_DAYS = 252
 COV_LOOKBACK = 252                # days used to estimate the covariance matrix

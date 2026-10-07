@@ -1,7 +1,8 @@
 # CLAUDE.md
 
-Self-contained research repo. References only itself — no paths or data
-dependencies on other repos.
+Self-contained research repo: code and the shipped panel reference only
+this repo. The raw build (`scripts/reshape_eodhd_archive.py`) needs the
+licensed external EODHD vendor archive, which is not included.
 
 ## Hard rules
 - **Never run git commit, git push, or any git write.** Francisco is the sole

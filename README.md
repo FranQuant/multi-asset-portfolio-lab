@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Notebooks](https://img.shields.io/badge/notebooks-12-F37626?logo=jupyter&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC?logo=pytest&logoColor=white)
-![Pre-registered](https://img.shields.io/badge/hypotheses-pre--registered-555555)
+![Pre-registered](https://img.shields.io/badge/hypotheses-nb08--10_pre--registered-555555)
 ![License](https://img.shields.io/badge/license-MIT-2e7d32)
 
 ### From mean-variance to risk parity and hierarchical allocation
@@ -22,16 +22,20 @@ years of data are too few to separate them.
 
 ## Findings
 
-- **No method beats equal weight.** 30 of 30 null hypotheses hold: seven Sharpe-ratio
-  tests against EW (Holm) and 23 CAPM-α tests (Romano–Wolf) ([nb08](notebooks/08_method_comparison.ipynb)).
+- **No registered Sharpe difference versus EW is detected (7 tests); no CAPM α survives
+  the adjustment (23 tests).** The seven Sharpe-ratio tests against EW use Holm, the 23
+  CAPM-α tests Romano–Wolf; the two families are reported separately
+  ([nb08](notebooks/08_method_comparison.ipynb)).
 - **The sample is too short to tell them apart.** Detecting a Sharpe gap of 0.2 against EW
-  with 80% power would take 34 to 220 years of daily data; 17 are available. The nulls mean
-  "indistinguishable", not "equal" ([nb11](notebooks/11_sharpe_inference.ipynb)).
+  with 80% power would take 34 to 220 years of daily data; 17 are available. The
+  non-rejections mean "not detected", not "equal"
+  ([nb11](notebooks/11_sharpe_inference.ipynb)).
 - **Every method beats cash.** Probabilistic Sharpe ratio ≥ 0.996 for all nine core runs,
-  and the best of the 23 runs survives deflation for the search ([nb11](notebooks/11_sharpe_inference.ipynb)).
+  and the best of the 23 retained runs survives deflation (a lower bound on the full
+  search) ([nb11](notebooks/11_sharpe_inference.ipynb)).
 - **Volatility targeting is a drawdown brake.** It cuts volatility to 73–87% of each base
-  method and the 2020 drawdown to 42–57%, with no detectable Sharpe change (16 of 16 nulls
-  hold) ([nb10](notebooks/10_vol_overlay.ipynb)).
+  method and the 2020 drawdown to 42–57%, with no detectable Sharpe change (none of the 16
+  tests detects a change) ([nb10](notebooks/10_vol_overlay.ipynb)).
 - **Where the models do differ: risk.** Volatility ranges from 3.2% (GMV) to 7.9% (EW),
   market β from 0.04 (HRP) to 0.36 (EW), maximum drawdown from −6.4% (MDP) to −17.8% (EW)
   and turnover from 14% to 248% a year (EW to MaxSharpe). 60/40 has the highest
@@ -42,8 +46,8 @@ years of data are too few to separate them.
 
 ## Data
 
-Daily adjusted prices for 13 ETFs, one per risk premium, 2008-01-02 to 2026-04-30. BIL
-(T-bills) is the risk-free rate and is not allocatable.
+Daily adjusted prices for 13 ETFs, one per risk premium, 2008-01-02 to 2026-04-30. BIL,
+a T-bill ETF, is the cash proxy and serves as the risk-free rate; it is not allocatable.
 
 | Sleeve | ETFs |
 |---|---|
@@ -59,7 +63,8 @@ ETFs, BIL and three factor ETFs; SHA-256 `329ef8a7…daf09e0`, full hash pinned 
 `tests/test_data_file.py`). Source: adjusted end-of-day prices from EOD Historical Data
 (eodhd.com). Built by `scripts/reshape_eodhd_archive.py` (vendor archive to a long CSV with
 columns Date, Ticker, AdjClose) and then `scripts/build_panel.py` (SPY trading calendar,
-forward-fill only); see notebook 00.
+forward-fill only); see notebook 00. The vendor archive itself is licensed and not
+included; `scripts/reshape_eodhd_archive.py` needs it.
 
 ## Methods
 
@@ -85,12 +90,15 @@ shipped data; no setup needed.
 
 - **Backtest.** Long-only, month-end rebalancing on a trailing 252-day window, 10 bp per
   unit of turnover, drifted weights between rebalances. Scored 2009-02-02 to 2026-04-30;
-  2022-12-31 splits a train and a 3.3-year test window. Benchmarks: EW and 60/40 (SPY/IEF).
-- **Inference.** Hypotheses are fixed in `registrations/*.toml` before the tested
-  statistics are computed (notebooks 04–10; notebook 11 is descriptive). Newey–West
-  standard errors, stationary bootstrap, Holm and Romano–Wolf adjustments.
-  `tests/test_reproduction.py` re-runs every registered backtest and checks its
-  Sharpe ratios against `registrations/reproduction.toml`.
+  2022-12-31 splits a train and a 3.3-year test window (a reporting split, not a sealed
+  holdout: the universe and BL k were chosen with the full sample available). Benchmarks:
+  EW and 60/40 (SPY/IEF).
+- **Inference.** Hypotheses for notebooks 08–10 are fixed in `registrations/*.toml` before
+  the tested statistics are computed; notebooks 04–07 fixed theirs after exploratory runs
+  and transcribed them into `registrations/nb0X.toml` (at 210adef), then evaluated them as
+  written; notebook 11 is descriptive. Newey–West standard errors, stationary bootstrap,
+  Holm and Romano–Wolf adjustments. `tests/test_reproduction.py` re-runs every registered
+  backtest and checks its Sharpe ratios against `registrations/reproduction.toml`.
 - **Reference checks.** GMV, maximum-Sharpe, MDP and HRP solvers are tested against
   PyPortfolioOpt (`tests/test_reference.py`).
 
@@ -125,11 +133,17 @@ Zoonekynd (2026), notebook 11 asks how much history each result needs:
   of the time in 17 years.
 - **Scope.** One universe, one sample, flat costs, monthly rebalancing, long-only. The
   results describe these methods on this data, not portfolio construction in general.
+- **Initial trade.** The first rebalance from cash is charged on half the L1 change (5 bp,
+  one-time), the same convention as every later rebalance.
+- **Split timing.** The 2022-12-31 rebalance's cost (0.06–1.2 bp) is booked on 2023-01-03,
+  in the test window, while its turnover is counted in train.
+- **Dependence choices.** Newey–West lags (9/8/6) and the 21-day bootstrap block are fixed
+  as registered; no lag/block sensitivity is reported.
 
 ## Reproduce
 
     python3.12 -m venv .venv && source .venv/bin/activate
-    pip install -e ".[dev,ref]" jupyter
+    pip install -e ".[dev,notebooks,ref]"
     pytest
     cd notebooks && for nb in [01][0-9]_*.ipynb; do jupyter nbconvert --to notebook --execute --inplace "$nb"; done
 
