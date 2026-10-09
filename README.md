@@ -58,13 +58,8 @@ a T-bill ETF, is the cash proxy and serves as the risk-free rate; it is not allo
 | Real assets | VNQ, DBC, GLD |
 | FX | UUP |
 
-The panel is shipped as `data/cache/prices.parquet` (4,611 trading days × 17 tickers: the 13
-ETFs, BIL and three factor ETFs; SHA-256 `329ef8a7…daf09e0`, full hash pinned in
-`tests/test_data_file.py`). Source: adjusted end-of-day prices from EOD Historical Data
-(eodhd.com). Built by `scripts/reshape_eodhd_archive.py` (vendor archive to a long CSV with
-columns Date, Ticker, AdjClose) and then `scripts/build_panel.py` (SPY trading calendar,
-forward-fill only); see notebook 00. The vendor archive itself is licensed and not
-included; `scripts/reshape_eodhd_archive.py` needs it.
+Prices: adjusted end-of-day data from [EODHD](https://eodhd.com), 17 tickers over 4,611 trading days, shipped as
+`data/cache/prices.parquet`.
 
 ## Methods
 
@@ -88,19 +83,11 @@ shipped data; no setup needed.
 
 ## Design
 
-- **Backtest.** Long-only, month-end rebalancing on a trailing 252-day window, 10 bp per
-  unit of turnover, drifted weights between rebalances. Scored 2009-02-02 to 2026-04-30;
-  2022-12-31 splits a train and a 3.3-year test window (a reporting split, not a sealed
-  holdout: the universe and BL k were chosen with the full sample available). Benchmarks:
-  EW and 60/40 (SPY/IEF).
-- **Inference.** Hypotheses for notebooks 08–10 are fixed in `registrations/*.toml` before
-  the tested statistics are computed; notebooks 04–07 fixed theirs after exploratory runs
-  and transcribed them into `registrations/nb0X.toml` (at 210adef), then evaluated them as
-  written; notebook 11 is descriptive. Newey–West standard errors, stationary bootstrap,
-  Holm and Romano–Wolf adjustments. `tests/test_reproduction.py` re-runs every registered
-  backtest and checks its Sharpe ratios against `registrations/reproduction.toml`.
-- **Reference checks.** GMV, maximum-Sharpe, MDP and HRP solvers are tested against
-  PyPortfolioOpt (`tests/test_reference.py`).
+- **Backtest.** Long-only, monthly rebalancing, 252-day window, 10 bp per unit of turnover; 2009–2026, benchmarks EW and 60/40.
+  The 2022 train/test split is for reporting, not a sealed holdout.
+- **Inference.** Hypotheses fixed in `registrations/` (nb08–10 before testing, nb04–07 after exploration); Newey–West errors,
+  bootstrap, Holm and Romano–Wolf corrections.
+- **Checks.** Every registered backtest is re-run in the tests; solvers are verified against PyPortfolioOpt.
 
 ## Results
 
@@ -159,19 +146,15 @@ Uses the price panel shipped in data/cache/prices.parquet (see Data). Python 3.1
 
 ## References
 
-- Black, F. & Litterman, R. (1992). Global Portfolio Optimization. Financial Analysts Journal 48(5).
-- Choueifaty, Y. & Coignard, Y. (2008). Toward Maximum Diversification. Journal of Portfolio Management 35(1).
-- DeMiguel, V., Garlappi, L. & Uppal, R. (2009). Optimal Versus Naive Diversification: How Inefficient Is the 1/N Portfolio Strategy? Review of Financial Studies 22(5).
-- Hilpisch, Y. J. (2026). Python and AI for Asset Management: Data Science, Machine Learning, and Modern AI Workflows. Manuscript.
-- Hilpisch, Y. J. (2027). Python for Finance (3rd ed.). O'Reilly Media. Early Release.
-- Ledoit, O. & Wolf, M. (2004). A Well-Conditioned Estimator for Large-Dimensional Covariance Matrices. Journal of Multivariate Analysis 88(2).
-- Ledoit, O. & Wolf, M. (2008). Robust Performance Hypothesis Testing with the Sharpe Ratio. Journal of Empirical Finance 15(5).
-- López de Prado, M. (2016). Building Diversified Portfolios that Outperform Out of Sample. Journal of Portfolio Management 42(4).
-- López de Prado, M., Lipton, A. & Zoonekynd, V. (2026). How to Use the Sharpe Ratio. ADIA Lab Research Paper 19.
-- Maillard, S., Roncalli, T. & Teïletche, J. (2010). The Properties of Equally Weighted Risk Contribution Portfolios. Journal of Portfolio Management 36(4).
-- Markowitz, H. (1952). Portfolio Selection. Journal of Finance 7(1).
-- Moreira, A. & Muir, T. (2017). Volatility-Managed Portfolios. Journal of Finance 72(4).
-- Romano, J. P. & Wolf, M. (2005). Stepwise Multiple Testing as Formalized Data Snooping. Econometrica 73(4).
+- Markowitz, H. (1952). Portfolio Selection. *Journal of Finance* 7(1).
+- Black, F. & Litterman, R. (1992). Global Portfolio Optimization. *Financial Analysts Journal* 48(5).
+- Ledoit, O. & Wolf, M. (2004). A Well-Conditioned Estimator for Large-Dimensional Covariance Matrices. *Journal of Multivariate Analysis* 88(2).
+- Roncalli, T. (2013). *Introduction to Risk Parity and Budgeting*. Chapman & Hall/CRC.
+- López de Prado, M. (2016). Building Diversified Portfolios that Outperform Out of Sample. *Journal of Portfolio Management* 42(4).
+- DeMiguel, V., Garlappi, L. & Uppal, R. (2009). Optimal Versus Naive Diversification: How Inefficient Is the 1/N Portfolio Strategy? *Review of Financial Studies* 22(5).
+- López de Prado, M., Lipton, A. & Zoonekynd, V. (2026). How to Use the Sharpe Ratio. *ADIA Lab Research Paper* 19.
+- Hilpisch, Y. J. (2026). *Python and AI for Asset Management: Data Science, Machine Learning, and Modern AI Workflows*. Manuscript.
+- Hilpisch, Y. J. (2027). *Python for Finance* (3rd ed.). O'Reilly Media. Early Release.
 
 ## Disclaimer
 
