@@ -110,25 +110,17 @@ Full window 2009-02-02 to 2026-04-30 (17.2 years); test window 3.3 years.
 
 ## How much 17 years can tell us
 
-An estimated Sharpe ratio is a noisy statistic. Following López de Prado, Lipton &
-Zoonekynd (2026), notebook 11 asks how much history each result needs:
+Sharpe ratios are noisy ([nb11](notebooks/11_sharpe_inference.ipynb), after López de Prado, Lipton & Zoonekynd, 2026):
 
-- **Beating cash** takes 2.9 to 6.6 years of data at these Sharpe ratios, so the 3.3-year
-  test window alone is too short for seven of the nine runs: test results are a
-  consistency check, not evidence.
-- **Beating EW** is far harder: a true gap of 0.2 in Sharpe would be detected only 12–51%
-  of the time in 17 years.
+- **Beating cash** needs 2.9–6.6 years of data, so the 3.3-year test window is a consistency check, not evidence.
+- **Beating EW** is far harder: a true 0.2 Sharpe gap would be detected only 12–51% of the time in 17 years.
 
 ## Limits
 
-- **Scope.** One universe, one sample, flat costs, monthly rebalancing, long-only. The
-  results describe these methods on this data, not portfolio construction in general.
-- **Initial trade.** The first rebalance from cash is charged on half the L1 change (5 bp,
-  one-time), the same convention as every later rebalance.
-- **Split timing.** The 2022-12-31 rebalance's cost (0.06–1.2 bp) is booked on 2023-01-03,
-  in the test window, while its turnover is counted in train.
-- **Dependence choices.** Newey–West lags (9/8/6) and the 21-day bootstrap block are fixed
-  as registered; no lag/block sensitivity is reported.
+- **Scope.** One universe, one sample, flat costs, monthly, long-only: results describe these methods on this data.
+- **Conventions.** The first trade from cash is costed like any rebalance (5 bp, once); the 2022-12-31 rebalance cost
+  (≤1.2 bp) lands in the test window while its turnover counts in train.
+- **Dependence.** Newey–West lags and the 21-day bootstrap block are fixed as registered; no sensitivity reported.
 
 ## Reproduce
 
