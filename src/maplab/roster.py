@@ -304,6 +304,24 @@ class TailRiskParity(RosterStrategy):
         return pd.Series(w, index=self.universe)
 
 
+def _tangency_robust(excess: np.ndarray, Sigma: np.ndarray, label: str, asof, on_rescale=None) -> np.ndarray:
+    """maplab's `_tangency_long_only` (which already retries once from an interior start); if that
+    still fails, solve the SAME problem rescaled to O(1) units — excess / max(excess), Sigma /
+    mean(diag Sigma). w = y / sum(y) is invariant to both scalings, so the answer is unchanged in
+    exact arithmetic; only SLSQP's conditioning improves. Seen on macOS (Accelerate) where a
+    resampled draw stops at a linesearch edge that Linux (OpenBLAS) does not hit. `on_rescale` is
+    called when the rescaled solve is used; raises if it also fails."""
+    try:
+        w, _ = _tangency_long_only(excess, Sigma, label, asof)
+        return w
+    except RuntimeError:
+        logger.warning("%s: tangency failed at asof=%s; re-solving the rescaled problem", label, asof)
+        if on_rescale is not None:
+            on_rescale()
+        w, _ = _tangency_long_only(excess / excess.max(), Sigma / np.mean(np.diag(Sigma)), label, asof)
+        return w
+
+
 # ── E. Maximum entropy with a Sharpe floor ──────────────────────────────────
 
 def _max_entropy_sharpe_floor(excess: np.ndarray, Sigma: np.ndarray, floor: float,
@@ -386,8 +404,8 @@ class MaxEntropy(RosterStrategy):
                            self.label, asof)
             self.fallback_dates.append(asof)
             return pd.Series(1.0 / n, index=Sigma.columns)
-        w_t, _ = _tangency_long_only(excess, S, self.label, asof,
-                                     on_retry=lambda: self.retry_dates.append(asof))
+        w_t = _tangency_robust(excess, S, self.label, asof,
+                               on_rescale=lambda: self.retry_dates.append(asof))
         sr_max = (w_t @ excess) / np.sqrt(w_t @ S @ w_t)
         w = _max_entropy_sharpe_floor(excess, S, self.floor_frac * sr_max, self.label, asof,
                                       x_retry=w_t, on_retry=lambda: self.retry_dates.append(asof))
@@ -730,8 +748,8 @@ class ResampledEF(_ExcessMixin, RosterStrategy):
                 degenerate += 1
                 acc += _min_variance_long_only(Sig)
             else:
-                w, _ = _tangency_long_only(ex, Sig.to_numpy(), self.label, asof)
-                acc += w
+                acc += _tangency_robust(ex, Sig.to_numpy(), self.label, asof,
+                                        on_rescale=lambda: self.retry_dates.append(asof))
         self.degenerate_draws[asof] = degenerate
         w = acc / self.n_draws
         return pd.Series(w / w.sum(), index=self.universe)
@@ -1000,7 +1018,8 @@ class AdversarialDiversifier(_ExcessMixin, RosterStrategy):
             logger.warning("%s: no positive expected excess at asof=%s; farthest vertex", self.label, asof)
             self.fallback_dates.append(asof)
             return pd.Series(np.eye(n)[int(np.argmax([tv(e) for e in np.eye(n)]))], index=self.universe)
-        w_t, _ = _tangency_long_only(excess, S, self.label, asof)
+        w_t = _tangency_robust(excess, S, self.label, asof,
+                               on_rescale=lambda: self.retry_dates.append(asof))
         floor = self.floor_frac * (w_t @ excess) / np.sqrt(w_t @ S @ w_t)
 
         def g(w):
@@ -1115,7 +1134,8 @@ class TrailingEnsemble(RosterStrategy):
                 self.fallback_dates.append(asof)
                 mix = _min_variance_long_only(pd.DataFrame(Sm))
             else:
-                mix, _ = _tangency_long_only(mum, Sm, self.label, asof)
+                mix = _tangency_robust(mum, Sm, self.label, asof,
+                                       on_rescale=lambda: self.retry_dates.append(asof))
         else:
             _, Sigma = self._estimate(panel, asof)
             S = Sigma.loc[self.universe, self.universe].to_numpy()

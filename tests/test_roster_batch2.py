@@ -235,3 +235,43 @@ def test_quarterly_hold_trades_only_at_quarter_ends():
     assert len(off) > 0 and off.max() < 1e-12
     on = turn[[d.month in (3, 6, 9, 12) for d in turn.index]]
     assert on.max() > 1e-4
+
+
+# ── Tangency fallback (macOS linesearch edge) ───────────────────────────────
+
+def test_tangency_robust_rescales_on_failure_with_same_answer(monkeypatch):
+    import maplab.roster as r
+    rng = np.random.default_rng(0)
+    A = rng.normal(size=(6, 6)); S = A @ A.T / 6 * 0.04 + np.eye(6) * 0.01
+    ex = np.array([0.08, 0.05, 0.02, 0.06, -0.01, 0.03])
+    w_ref = r._tangency_robust(ex, S, "t", None)
+    real, calls, hits = r._tangency_long_only, {"n": 0}, []
+
+    def flaky(e, Sig, label, asof, on_retry=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("Positive directional derivative for linesearch")
+        return real(e, Sig, label, asof, on_retry)
+
+    monkeypatch.setattr(r, "_tangency_long_only", flaky)
+    w = r._tangency_robust(ex, S, "t", None, on_rescale=lambda: hits.append(1))
+    assert hits == [1] and np.abs(w - w_ref).max() < 1e-7
+
+
+def test_resampled_records_rescaled_draws(monkeypatch):
+    import maplab.roster as r
+    panel, logr = make_panel(seed=5)
+    asof = asof_of(logr)
+    base = ResampledEF(universe=U18, n_draws=10)(panel, asof)
+    real, calls = r._tangency_long_only, {"n": 0}
+
+    def flaky(e, Sig, label, asof_, on_retry=None):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            raise RuntimeError("Positive directional derivative for linesearch")
+        return real(e, Sig, label, asof_, on_retry)
+
+    monkeypatch.setattr(r, "_tangency_long_only", flaky)
+    st = ResampledEF(universe=U18, n_draws=10)
+    w = st(panel, asof)
+    assert st.retry_dates == [asof] and np.abs(w - base).max() < 1e-6
