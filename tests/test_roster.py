@@ -12,7 +12,7 @@ from maplab.contract import COV_LOOKBACK
 from maplab.data import Panel
 from maplab.models import EqualWeight, FixedWeight, GMV, InverseVol
 from maplab.roster import (
-    Ensemble, MaxEntropy, MinCVaR, MinimumCorrelation, TECap, TailRiskParity, VolTarget,
+    Ensemble, ExcludeAssets, MaxEntropy, MinCVaR, MinimumCorrelation, TECap, TailRiskParity, VolTarget,
     _max_entropy_sharpe_floor, _min_corr_weights, _min_cvar_long_only, _es_parity_long_only,
     es_contributions, es_parity_kkt_residual, historical_cvar, on_universe, tracking_error,
 )
@@ -195,22 +195,52 @@ def test_max_entropy_strategy_meets_floor():
 
 # ── Vol targeting ───────────────────────────────────────────────────────────
 
-def test_vol_target_scales_into_cash():
+def test_vol_target_moreira_muir_inverse_variance():
     panel, logr = make_panel()
     asof = logr.index[COV_LOOKBACK]
     vt = VolTarget(universe=U18, cash="CASH", target_vol=0.02)
     w = vt(panel, asof)
     check_valid(w)
     risky = [t for t in U18 if t != "CASH"]
-    S = ml.sample_cov(logr.loc[logr.index < asof].iloc[-21:])
+    S = ml.sample_cov(logr.loc[logr.index < asof].iloc[-22:])        # previous month, 22 days
     b = pd.Series(1 / 17, index=risky)
-    c = min(1.0, 0.02 / np.sqrt(b @ S.loc[risky, risky] @ b))
-    assert c < 1 and np.isclose(vt.exposure[asof], c)
-    assert np.allclose(w[risky], c / 17) and np.isclose(w["CASH"], 1 - c)
+    e = min(1.0, 0.02 ** 2 / (b @ S.loc[risky, risky] @ b))
+    assert e < 1 and np.isclose(vt.exposure[asof], e)
+    assert np.allclose(w[risky], e / 17) and np.isclose(w["CASH"], 1 - e)
+    e_iv = min(1.0, 0.02 / np.sqrt(b @ S.loc[risky, risky] @ b))
+    w_iv = VolTarget(universe=U18, cash="CASH", target_vol=0.02, scaling="inverse_vol")(panel, asof)
+    assert np.isclose(w_iv["CASH"], 1 - e_iv)
     w_hi = VolTarget(universe=U18, cash="CASH", target_vol=5.0)(panel, asof)
     assert np.allclose(w_hi[risky], 1 / 17) and w_hi["CASH"] == 0      # capped at 1, no leverage
     with pytest.raises(ValueError):
         VolTarget(universe=U18, cash="BIL")
+
+
+def test_vol_target_custom_base_drops_cash_and_renormalises():
+    panel, logr = make_panel()
+    asof = logr.index[COV_LOOKBACK]
+    base = {"US_LC": 0.5, "UST_INT": 0.3, "CASH": 0.2}
+    vt = VolTarget(universe=U18, cash="CASH", base=base, target_vol=5.0)
+    w = vt(panel, asof)
+    assert np.isclose(w["US_LC"], 0.625) and np.isclose(w["UST_INT"], 0.375) and w["CASH"] == 0
+    with pytest.raises(ValueError):
+        VolTarget(universe=U18, cash="CASH", base={"CASH": 1.0})
+
+
+def test_exclude_assets_zero_fills_and_keeps_label():
+    panel, logr = make_panel()
+    asof = logr.index[COV_LOOKBACK]
+    risky = [t for t in U18 if t != "CASH"]
+    base = on_universe(GMV, risky)()
+    ex = ExcludeAssets(base, universe=U18)
+    w = ex(panel, asof)
+    check_valid(w)
+    assert w["CASH"] == 0 and ex.excluded == ["CASH"] and ex.label == base.label
+    assert np.allclose(w[risky], on_universe(GMV, risky)()(panel, asof))
+    full = on_universe(GMV, U18)()(panel, asof)
+    assert full["CASH"] > 0.5                                         # why cash is excluded
+    with pytest.raises(ValueError):
+        ExcludeAssets(on_universe(GMV, U18 + ["X"])(), universe=U18)
 
 
 # ── TE cap ──────────────────────────────────────────────────────────────────
