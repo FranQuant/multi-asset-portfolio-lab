@@ -13,6 +13,7 @@ FAMILY_COLORS = {
     "Signal-based":  "#e67e22",   # TSMOM, factor tilts
     "Benchmark":     "#555555",   # EW
     "Overlay":       "#8e44ad",   # VMP
+    "Ensemble":      "#00838f",   # CIO ensembles (roster.py)
 }
 
 
