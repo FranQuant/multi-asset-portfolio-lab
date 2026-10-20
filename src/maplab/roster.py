@@ -49,6 +49,99 @@ def on_universe(cls: type[Strategy], universe: list[str]) -> type[Strategy]:
     return type(cls.__name__, (cls,), {"universe": list(universe), "__module__": __name__})
 
 
+# ── Solver fallback: SLSQP's failure flag is not a verdict ─────────────────
+#
+# On macOS (Accelerate) SLSQP sometimes stops AT the optimum and still reports failure ("Positive
+# directional derivative for linesearch", "Iteration limit reached"); Linux (OpenBLAS) does not.
+# Every roster problem routed here is convex, so a feasible point that satisfies the KKT conditions
+# IS the optimum. `_fallback` accepts a point only with that certificate — never just "the best
+# point we have" — and raises otherwise.
+
+FEAS_TOL = 1e-8
+KKT_TOL = 5e-5          # relative stationarity residual; optima score ~1e-8..1e-5, a 1% perturbation ~2e-4
+ACTIVE_TOL = 1e-7
+TRUST_OPTIONS = {"gtol": 1e-10, "xtol": 1e-12, "maxiter": 10000}
+
+
+def _bounds_arrays(bounds):
+    lb = np.array([-np.inf if b[0] is None else b[0] for b in bounds], dtype=float)
+    ub = np.array([np.inf if b[1] is None else b[1] for b in bounds], dtype=float)
+    return lb, ub
+
+
+def _feasible(x: np.ndarray, bounds, cons, tol: float = FEAS_TOL) -> bool:
+    lb, ub = _bounds_arrays(bounds)
+    if not np.all(np.isfinite(x)) or (x < lb - tol).any() or (x > ub + tol).any():
+        return False
+    for c in cons:
+        v = np.atleast_1d(c["fun"](x))
+        if (c["type"] == "eq" and np.abs(v).max() > tol) or (c["type"] == "ineq" and v.min() < -tol):
+            return False
+    return True
+
+
+def kkt_residual(x: np.ndarray, jac, bounds, cons, act: float = ACTIVE_TOL) -> float:
+    """Relative KKT stationarity residual of min f s.t. eq = 0, ineq >= 0, bounds:
+    min over multipliers (free for equalities, >= 0 for active inequalities and active bounds) of
+    ||grad f - sum(multiplier * grad constraint)|| / max(||grad f||, 1), solved as an NNLS."""
+    g = np.asarray(jac(x), dtype=float)
+    cols = []
+    for c in cons:
+        A = np.atleast_2d(c["jac"](x))
+        v = np.atleast_1d(c["fun"](x))
+        for k in range(A.shape[0]):
+            if c["type"] == "eq":
+                cols += [A[k], -A[k]]
+            elif v[k] <= act * (1 + abs(v[k])):
+                cols.append(A[k])
+    lb, ub = _bounds_arrays(bounds)
+    for i in range(len(x)):
+        e = np.zeros(len(x)); e[i] = 1.0
+        if np.isfinite(lb[i]) and x[i] - lb[i] <= act * (1 + abs(lb[i])):
+            cols.append(e)
+        if np.isfinite(ub[i]) and ub[i] - x[i] <= act * (1 + abs(ub[i])):
+            cols.append(-e)
+    scale = max(np.linalg.norm(g), 1.0)
+    if not cols:
+        return float(np.linalg.norm(g) / scale)
+    M = np.array(cols).T
+    z, _ = opt.nnls(M, g, maxiter=50 * M.shape[1])
+    return float(np.linalg.norm(M @ z - g) / scale)
+
+
+def _certified(x, jac, bounds, cons) -> bool:
+    return _feasible(x, bounds, cons) and kkt_residual(x, jac, bounds, cons) <= KKT_TOL
+
+
+def _fallback(fun, jac, starts, bounds, cons, tried, label: str, asof, on_fallback=None) -> np.ndarray:
+    """Called when SLSQP did not report success. In order, returns the first point that is feasible
+    AND passes the KKT certificate: (1) the SLSQP results in `tried`; (2) SLSQP from each of `starts`;
+    (3) trust-constr (interior point) from starts[0]. Raises if none is certified."""
+    logger.warning("%s: SLSQP did not report success at asof=%s (%s); certifying / falling back",
+                   label, asof, "; ".join(str(r.message) for r in tried))
+    if on_fallback is not None:
+        on_fallback()
+    for r in tried:
+        if _certified(r.x, jac, bounds, cons):
+            return r.x
+    for x0 in starts:
+        r = opt.minimize(fun, x0, jac=jac, method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
+        if _certified(r.x, jac, bounds, cons):
+            return r.x
+    lb, ub = _bounds_arrays(bounds)
+    inner_lb = np.where(np.isfinite(lb), lb + 1e-9 * (1 + np.abs(lb)), -np.inf)
+    inner_ub = np.where(np.isfinite(ub), ub - 1e-9 * (1 + np.abs(ub)), np.inf)
+    x0 = np.minimum(np.maximum(np.asarray(starts[0], dtype=float), inner_lb), inner_ub)
+    tc = opt.minimize(fun, x0, jac=jac, hess=opt.BFGS(), method="trust-constr",
+                      bounds=opt.Bounds(lb, ub, keep_feasible=True), constraints=cons, options=TRUST_OPTIONS)
+    if _certified(tc.x, jac, bounds, cons):
+        return tc.x
+    best = min([*(r.x for r in tried), tc.x], key=lambda x: kkt_residual(x, jac, bounds, cons))
+    raise RuntimeError(f"{label}: no KKT-certified solution from SLSQP or trust-constr at asof={asof} "
+                       f"(best KKT residual {kkt_residual(best, jac, bounds, cons):.1e} vs {KKT_TOL:.0e}, "
+                       f"feasible={_feasible(best, bounds, cons)})")
+
+
 class RosterStrategy(Strategy):
     """Strategy base for this module: adds `universe=` and a simple-return scenario slice."""
 
@@ -222,9 +315,8 @@ def _es_parity_long_only(R: np.ndarray, beta: float, label: str, asof) -> np.nda
     bounds = [(1e-12, None)] * n + [(None, None)] + [(0.0, None)] * T
     res = opt.minimize(f, x0, jac=jac, method="SLSQP", bounds=bounds,
                        constraints=cons, options=SLSQP_OPTIONS)
-    if not res.success:
-        raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message}")
-    y = res.x[:n]
+    x = res.x if res.success else _fallback(f, jac, [x0], bounds, cons, [res], label, asof)
+    y = np.clip(x[:n], 1e-12, None)
     return y / y.sum()
 
 
@@ -308,9 +400,9 @@ def _tangency_robust(excess: np.ndarray, Sigma: np.ndarray, label: str, asof, on
     """maplab's `_tangency_long_only` (which already retries once from an interior start); if that
     still fails, solve the SAME problem rescaled to O(1) units — excess / max(excess), Sigma /
     mean(diag Sigma). w = y / sum(y) is invariant to both scalings, so the answer is unchanged in
-    exact arithmetic; only SLSQP's conditioning improves. Seen on macOS (Accelerate) where a
-    resampled draw stops at a linesearch edge that Linux (OpenBLAS) does not hit. `on_rescale` is
-    called when the rescaled solve is used; raises if it also fails."""
+    exact arithmetic; only SLSQP's conditioning improves. If that fails too, `_fallback` (trust-constr)
+    solves the rescaled QP. Seen on macOS (Accelerate) where a resampled draw stops at a linesearch
+    edge that Linux (OpenBLAS) does not hit. `on_rescale` is called when a fallback is used."""
     try:
         w, _ = _tangency_long_only(excess, Sigma, label, asof)
         return w
@@ -318,8 +410,18 @@ def _tangency_robust(excess: np.ndarray, Sigma: np.ndarray, label: str, asof, on
         logger.warning("%s: tangency failed at asof=%s; re-solving the rescaled problem", label, asof)
         if on_rescale is not None:
             on_rescale()
-        w, _ = _tangency_long_only(excess / excess.max(), Sigma / np.mean(np.diag(Sigma)), label, asof)
-        return w
+        e, S = excess / excess.max(), Sigma / np.mean(np.diag(Sigma))
+        try:
+            w, _ = _tangency_long_only(e, S, label, asof)
+            return w
+        except RuntimeError:
+            n = len(e)
+            pos = np.clip(e, 0.0, None)
+            y0 = pos / (e @ pos)
+            y = _fallback(lambda y: y @ S @ y, lambda y: 2 * S @ y, [y0, np.full(n, 1.0 / e[e > 0].sum()) * (e > 0)], [(0.0, None)] * n,
+                          [{"type": "eq", "fun": lambda y: e @ y - 1.0, "jac": lambda y: e}], [], label, asof)
+            y = np.clip(y, 0.0, None)
+            return y / y.sum()
 
 
 # ── E. Maximum entropy with a Sharpe floor ──────────────────────────────────
@@ -359,19 +461,30 @@ def _max_entropy_sharpe_floor(excess: np.ndarray, Sigma: np.ndarray, floor: floa
         return opt.minimize(lambda w: np.sum(w * np.log(w)), x0, jac=lambda w: np.log(w) + 1.0,
                             method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
 
+    ent = lambda w: np.sum(w * np.log(w))
     res = solve(ew)
+    x = res.x
     if not res.success or g(res.x) < -1e-9:
-        if x_retry is None:
-            raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message} (g={g(res.x):.3e})")
-        logger.warning("%s: SLSQP failed at asof=%s (%s); retrying from the feasible start",
-                       label, asof, res.message)
+        tried = [res]
         if on_retry is not None:
             on_retry()
-        x0 = np.clip(x_retry, 1e-12, None)
-        res = solve(x0 / x0.sum())
-        if not res.success or g(res.x) < -1e-9:
-            raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message} (g={g(res.x):.3e})")
-    w = np.clip(res.x, 0.0, None)
+        if x_retry is not None:
+            x0 = np.clip(x_retry, 1e-12, None)
+            res2 = solve(x0 / x0.sum())
+            tried.append(res2)
+            x = res2.x
+        if not (tried[-1].success and g(tried[-1].x) >= -1e-9):
+            starts = [ew]
+            if x_retry is not None:
+                xt = np.clip(x_retry, 1e-12, None); xt = xt / xt.sum()
+                lo, hi = 0.0, 1.0                      # boundary point on the segment ew -> tangency
+                for _ in range(60):
+                    mid = (lo + hi) / 2
+                    lo, hi = (lo, mid) if g(mid * xt + (1 - mid) * ew) >= 0 else (mid, hi)
+                xb = hi * xt + (1 - hi) * ew
+                starts = [xb, 0.5 * (xb + xt), xt]
+            x = _fallback(ent, lambda w: np.log(w) + 1.0, starts, bounds, cons, tried, label, asof)
+    w = np.clip(x, 0.0, None)
     return w / w.sum()
 
 
@@ -673,12 +786,11 @@ def _robust_tangency(excess: np.ndarray, Sigma: np.ndarray, theta_sd: np.ndarray
     def g_jac(y):
         return excess - kappa * (theta_sd ** 2 * y) / np.linalg.norm(theta_sd * y)
 
-    res = opt.minimize(lambda y: y @ Sigma @ y, y0, jac=lambda y: 2 * Sigma @ y, method="SLSQP",
-                       bounds=[(0.0, None)] * n, constraints=[{"type": "ineq", "fun": g, "jac": g_jac}],
-                       options=SLSQP_OPTIONS)
-    if not res.success or g(res.x) < -1e-9:
-        raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message}")
-    y = np.clip(res.x, 0.0, None)
+    bounds, cons = [(0.0, None)] * n, [{"type": "ineq", "fun": g, "jac": g_jac}]
+    fq, jq = (lambda y: y @ Sigma @ y), (lambda y: 2 * Sigma @ y)
+    res = opt.minimize(fq, y0, jac=jq, method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
+    x = res.x if (res.success and g(res.x) >= -1e-9) else _fallback(fq, jq, [y0, y0 * 1.5], bounds, cons, [res], label, asof)
+    y = np.clip(x, 0.0, None)
     return y / y.sum()
 
 
@@ -779,16 +891,14 @@ def _max_sortino(excess: np.ndarray, X: np.ndarray, label: str, asof) -> np.ndar
     def jac(y):
         return 2.0 * scale / T * X.T @ np.minimum(X @ y, 0.0)
 
-    res = opt.minimize(f, y0, jac=jac, method="SLSQP", bounds=[(0.0, None)] * n,
-                       constraints=[{"type": "eq", "fun": lambda y: excess @ y - 1.0, "jac": lambda y: excess}],
-                       options=SLSQP_OPTIONS)
+    bounds = [(0.0, None)] * n
+    cons = [{"type": "eq", "fun": lambda y: excess @ y - 1.0, "jac": lambda y: excess}]
+    res = opt.minimize(f, y0, jac=jac, method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
+    x = res.x
     if not res.success:
-        res = opt.minimize(f, y_ref, jac=jac, method="SLSQP", bounds=[(0.0, None)] * n,
-                           constraints=[{"type": "eq", "fun": lambda y: excess @ y - 1.0, "jac": lambda y: excess}],
-                           options=SLSQP_OPTIONS)
-        if not res.success:
-            raise RuntimeError(f"{label}: SLSQP failed at asof={asof}: {res.message}")
-    y = np.clip(res.x, 0.0, None)
+        res2 = opt.minimize(f, y_ref, jac=jac, method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
+        x = res2.x if res2.success else _fallback(f, jac, [y_ref, 0.5 * (y_ref + y0)], bounds, cons, [res, res2], label, asof)
+    y = np.clip(x, 0.0, None)
     return y / y.sum()
 
 
@@ -947,11 +1057,11 @@ class TPATwoFactor(_ExcessMixin, RosterStrategy):
         cons = [{"type": "eq", "fun": lambda w: w.sum() - 1.0, "jac": lambda w: ones},
                 {"type": "eq", "fun": lambda w: B.T @ w - self.target, "jac": lambda w: B.T},
                 {"type": "ineq", "fun": lambda w: 1.0 - (w @ S @ w) / b2, "jac": lambda w: -2 * S @ w / b2}]
-        res = opt.minimize(lambda w: -a_scale * (alpha @ w), w0, jac=lambda w: -a_scale * alpha,
-                           method="SLSQP", bounds=[(0.0, 1.0)] * n, constraints=cons, options=SLSQP_OPTIONS)
-        if not res.success:
-            raise RuntimeError(f"{self.label}: SLSQP failed at asof={asof}: {res.message}")
-        w = np.clip(res.x, 0.0, None)
+        fa, ja, bounds = (lambda w: -a_scale * (alpha @ w)), (lambda w: -a_scale * alpha), [(0.0, 1.0)] * n
+        res = opt.minimize(fa, w0, jac=ja, method="SLSQP", bounds=bounds, constraints=cons, options=SLSQP_OPTIONS)
+        x = res.x if res.success else _fallback(fa, ja, [w0], bounds, cons, [res], self.label, asof,
+                                                on_fallback=lambda: self.retry_dates.append(asof))
+        w = np.clip(x, 0.0, None)
         return pd.Series(w / w.sum(), index=self.universe)
 
 
